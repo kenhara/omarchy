@@ -18,8 +18,11 @@ printf '%s\n' "$@" >>"$OMARCHY_TEST_ARGV"
 SH
 chmod +x "$mock_bin"/*
 
+printf 'default\n' >"$test_tmp/profile-default"
 export HOME="$test_tmp/home"
-export PATH="$mock_bin:$PATH"
+export PATH="$mock_bin:$ROOT/bin:$PATH"
+export OMARCHY_PATH="$ROOT"
+export OMARCHY_PROFILE_FILE="$test_tmp/profile-default"
 export OMARCHY_TEST_ARGV="$test_tmp/argv"
 
 applications="$HOME/.local/share/applications"

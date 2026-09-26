@@ -5,6 +5,9 @@
 
 set -e
 
+source "$OMARCHY_PATH/install/helpers/child-install.sh"
+child_require_install
+
 ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
 
 safe_icon_name() {

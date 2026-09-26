@@ -32,7 +32,7 @@ exit 0
 SH
 chmod +x "$test_tmp/sudo"
 : >"$sudo_log"
-if PATH="$test_tmp:$PATH" OMARCHY_PATH="$ROOT" OMARCHY_PROFILE_FILE="$child_marker" OMARCHY_TEST_SUDO_LOG="$sudo_log" \
+if PATH="$test_tmp:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" OMARCHY_PROFILE_FILE="$child_marker" OMARCHY_TEST_SUDO_LOG="$sudo_log" \
   bash "$install_script" >/dev/null 2>"$test_tmp/battlenet.err"; then
   fail "the Battle.net installer exits non-zero on a child profile"
 fi

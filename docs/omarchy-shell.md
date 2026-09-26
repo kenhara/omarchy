@@ -88,6 +88,15 @@ bar from the CLI — `use | reset | defaults | position | transparent | put |
 move | set`, with placement flags such as `--section` and `--index`.
 The lower-level IPC methods remain available through `omarchy-shell shell ...`.
 
+On a child install the third-party scan only emits a manifest when the
+directory name matches the manifest id and that id is listed in
+`/etc/omarchy/plugins-parent-approved`. Unapproved or impersonating
+directories stay on disk but are not loaded. Built-in `omarchy.*` plugins
+are not filtered. `omarchy-plugin-catalog` uses the same scan so bar
+selection cannot offer a bar the shell will not load. Approval records an
+id, not a review of the plugin's code; adding or enabling asks for the
+parent password once and then drops the sudo ticket. `omarchy plugin update` is not gated.
+
 ## IPC
 
 The shell exposes a `shell` target (the host also registers

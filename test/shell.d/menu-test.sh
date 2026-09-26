@@ -378,10 +378,10 @@ assert(
 )
 
 const pluginAdd = fs.readFileSync(path.join(root, 'bin/omarchy-plugin-add'), 'utf8')
-const pluginEnable = fs.readFileSync(path.join(root, 'bin/omarchy-plugin-enable'), 'utf8')
+const pluginEnableCore = fs.readFileSync(path.join(root, 'install/helpers/plugin-enable.sh'), 'utf8')
 assert(
-  /Now using \$id as the bar/.test(pluginEnable)
-    && /omarchy-plugin-enable "\$id" "\$\{ENABLE_PLACEMENT\[@\]\}"/.test(pluginAdd),
+  /Now using \$id as the bar/.test(pluginEnableCore)
+    && /omarchy_plugin_enable_core "\$id" "\$\{ENABLE_PLACEMENT\[@\]\}"/.test(pluginAdd),
   'plugin enable reports a bar as replacing the one in use, whether enabled or freshly added'
 )
 assert(

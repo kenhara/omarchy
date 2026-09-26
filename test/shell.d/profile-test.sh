@@ -59,19 +59,53 @@ child_packages="$ROOT/install/omarchy-child.packages"
 mapfile -t child_pkgs < <(grep -vE '^[[:space:]]*(#|$)' "$child_packages")
 (( ${#child_pkgs[@]} > 0 )) || fail "install/omarchy-child.packages lists the child app set"
 printf '%s\n' "${child_pkgs[@]}" | grep -qxF gcompris-qt || fail "the child app set includes gcompris-qt"
+printf '%s\n' "${child_pkgs[@]}" | grep -qxF leocad || fail "the child app set includes leocad"
+if printf '%s\n' "${child_pkgs[@]}" | grep -qxF supertuxkart; then
+  fail "the child app set does not include SuperTuxKart"
+fi
 grep -Fq 'omarchy-child.packages' "$ROOT/bin/omarchy-reinstall-pkgs" || fail "omarchy-reinstall-pkgs includes the child list"
 grep -Fq 'omarchy-profile-child' "$ROOT/bin/omarchy-reinstall-pkgs" || fail "omarchy-reinstall-pkgs includes the child list only on child installs"
 pass "the child package list is wired for the ISO and for reinstalls"
 
+child_apps="$ROOT/install/omarchy-child-applications"
+[[ -d $child_apps ]] || fail "install/omarchy-child-applications ships"
+  for child_launcher in "Khan Academy" Scratch Grokipedia Wikipedia; do
+  [[ -f "$child_apps/${child_launcher}.desktop" ]] || fail "child launcher '$child_launcher' is a shipped desktop file"
+  grep -Fq omarchy-launch-webapp "$child_apps/${child_launcher}.desktop" ||
+    fail "child launcher '$child_launcher' uses omarchy-launch-webapp"
+  icon=$(sed -n 's/^Icon=//p' "$child_apps/${child_launcher}.desktop" | head -1)
+  [[ -n $icon ]] || fail "child launcher '$child_launcher' sets Icon="
+  icon_matched=0
+  for icon_file in "$ROOT/applications/icons/"*; do
+    [[ -f $icon_file ]] || continue
+    icon_base=${icon_file##*/}
+    icon_base=${icon_base%.*}
+    icon_slug=$(printf '%s\n' "$icon_base" | tr '[:upper:]' '[:lower:]' | sed 's/[^[:alnum:]]\+/-/g; s/^-//; s/-$//')
+    if [[ $icon_slug == "$icon" ]]; then
+      icon_matched=1
+      break
+    fi
+  done
+  (( icon_matched )) || fail "child launcher '$child_launcher' Icon=$icon has a matching file under applications/icons/"
+done
+grep -Fq 'omarchy-child-applications' "$ROOT/bin/omarchy-refresh-applications" ||
+  fail "omarchy-refresh-applications copies the child-only launchers"
+pass "the child-only launcher directory is wired into refresh"
+
 hidden="$ROOT/install/omarchy-child-hidden-applications"
 [[ -f $hidden ]] || fail "install/omarchy-child-hidden-applications ships"
 hidden_count=0
+battlenet_hidden=0
 while IFS= read -r name || [[ -n $name ]]; do
   [[ -z $name || $name == \#* ]] && continue
-  [[ -f "$ROOT/applications/${name}.desktop" ]] || fail "hidden launcher '$name' is a shipped desktop file"
+  [[ -f "$ROOT/applications/${name}.desktop" || -f "$ROOT/default/applications/${name}.desktop" ]] || fail "hidden launcher '$name' is a shipped desktop file"
+  if [[ $name == "battlenet" ]]; then
+    battlenet_hidden=1
+  fi
   hidden_count=$((hidden_count + 1))
 done <"$hidden"
 (( hidden_count > 0 )) || fail "install/omarchy-child-hidden-applications lists launchers to drop"
+(( battlenet_hidden == 1 )) || fail "the hidden launcher list includes Battle.net"
 grep -Fq 'omarchy-child-hidden-applications' "$ROOT/bin/omarchy-refresh-applications" ||
   fail "omarchy-refresh-applications reads the hidden launcher list"
 pass "the child hidden-launcher list names shipped desktop files"

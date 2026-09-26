@@ -5,6 +5,11 @@
 
 set -e
 
+if omarchy-profile-child; then
+  echo "Battle.net is not available on a child install." >&2
+  exit 1
+fi
+
 PREFIX="$HOME/Games/battlenet"
 LAUNCHER="$PREFIX/drive_c/Program Files (x86)/Battle.net/Battle.net Launcher.exe"
 INSTALLER_URL="https://downloader.battle.net/download/getInstallerForGame?os=win&gameProgram=BATTLENET_APP&version=Live"

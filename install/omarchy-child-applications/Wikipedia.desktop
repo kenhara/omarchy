@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Name=Wikipedia
+Exec=omarchy-launch-webapp https://www.wikipedia.org/
+Terminal=false
+Type=Application
+Icon=wikipedia
+StartupNotify=true

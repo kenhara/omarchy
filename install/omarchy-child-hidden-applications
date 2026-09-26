@@ -11,3 +11,6 @@ Zoom
 Google Contacts
 Google Messages
 Google Photos
+# Installer-only template in default/applications/; hide it if a parent later
+# plants it or refresh replays a leftover launcher.
+battlenet

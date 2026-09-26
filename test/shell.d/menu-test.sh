@@ -268,14 +268,19 @@ assert(
 assert(!defaultById['install.ai.crush'], 'menu removes Crush from Install > AI')
 // Software you already have keeps its place in Install, dimmed rather than
 // dropped, so the list reads as a catalog of what Omarchy can install.
-// Chromium Account is the sole Install row with anything left to hide for, so
-// any other `when:` here is a row that went back to vanishing once installed.
+// Battle.net is hidden on child installs; Chromium Account stays hidden
+// without Chromium. Any other `when:` here vanished the row once installed.
 assertDeepEqual(
   defaultItems
     .filter(item => item.id.startsWith('install.') && item.action && item.when)
     .map(item => item.id),
-  ['install.service.chromium-account'],
-  'menu never hides an Install row because the software is already there'
+  ['install.service.chromium-account', 'install.gaming.battlenet'],
+  'menu hides Battle.net on child installs and Chromium Account without Chromium'
+)
+assertEqual(
+  defaultById['install.gaming.battlenet'].when,
+  '! omarchy-profile-child',
+  'menu hides Battle.net on a child install'
 )
 assert(
   ['install.browser.zen', 'install.editor.vscode', 'install.gaming.steam', 'install.development.rust', 'install.windows'].every(

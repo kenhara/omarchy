@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Name=Grokipedia
+Exec=omarchy-launch-webapp https://grokipedia.com/
+Terminal=false
+Type=Application
+Icon=grokipedia
+StartupNotify=true

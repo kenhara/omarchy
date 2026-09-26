@@ -1,0 +1,14 @@
+#!/bin/bash
+# Re-apply the Family DNS lock when a connection comes up, so a new school
+# Wi-Fi profile cannot keep DHCP DNS. Global-dns covers most cases; this is
+# the belt for per-connection ignore-auto-dns. Only `up` — dhcp-change after
+# our own modify would loop.
+
+[[ ${2:-} == "up" ]] || exit 0
+[[ -n ${CONNECTION_UUID:-} ]] || exit 0
+
+OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+export PATH="$OMARCHY_PATH/bin:/usr/bin:/usr/sbin:/bin:/sbin"
+
+omarchy-profile-child || exit 0
+exec omarchy-parent-dns apply --if-needed --connection "$CONNECTION_UUID"

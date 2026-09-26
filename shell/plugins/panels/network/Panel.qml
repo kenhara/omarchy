@@ -138,8 +138,12 @@ Panel {
   readonly property bool speedHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === speedHeaderIndex
   readonly property bool toggleHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === toggleHeaderIndex
   readonly property string toggleHint: Networking.wifiEnabled ? "Turn Wi-Fi off" : "Turn Wi-Fi on"
-  readonly property var dnsProviders: ["DHCP", "Cloudflare", "Google", "Custom"]
+  readonly property var dnsProviders: Model.dnsProviderList()
   property int dnsIndex: 0
+  property bool childInstall: false
+  property string parentDnsMode: "off"
+  readonly property bool dnsLocked: Model.dnsLocked(childInstall, parentDnsMode)
+  readonly property string dnsLockTitle: Model.dnsLockTitle(parentDnsMode)
   // ["2.4", "5", ...], or empty when there is nothing to choose between.
   // Wi-Fi only: on Ethernet the band of a secondary radio is not what the
   // panel is describing.
@@ -241,6 +245,7 @@ Panel {
   }
 
   function activateDns() {
+    if (dnsLocked) return
     if (dnsIndex < 0 || dnsIndex >= dnsProviders.length) return
     setDns(dnsProviders[dnsIndex])
   }
@@ -530,6 +535,10 @@ Panel {
       dnsProc.command = ["bash", "-c", root.dnsCommand("")]
       dnsProc.running = true
     }
+    if (!parentDnsProc.running) {
+      parentDnsProc.command = ["omarchy-parent-dns"]
+      parentDnsProc.running = true
+    }
     if (!bandProc.running) {
       bandProc.command = ["omarchy-network-band"]
       bandProc.running = true
@@ -720,7 +729,7 @@ Panel {
   }
 
   function setDns(provider) {
-    if (!root.bar || !provider || actionProc.running) return
+    if (root.dnsLocked || !root.bar || !provider || actionProc.running) return
 
     if (provider === "Custom") {
       var launcher = "omarchy-launch-floating-terminal-with-presentation"
@@ -896,6 +905,25 @@ Panel {
       waitForEnd: true
       onStreamFinished: root.updateDns(text)
     }
+  }
+
+  Process {
+    id: childInstallProc
+    command: ["bash", "-c", "omarchy-profile-child && echo child || echo default"]
+    stdout: StdioCollector { id: childInstallOut; waitForEnd: true }
+    onExited: root.childInstall = String(childInstallOut.text || "").trim() === "child"
+    Component.onCompleted: running = true
+  }
+
+  Process {
+    id: parentDnsProc
+    command: ["omarchy-parent-dns"]
+    stdout: StdioCollector { id: parentDnsOut; waitForEnd: true }
+    onExited: {
+      var mode = String(parentDnsOut.text || "").trim()
+      root.parentDnsMode = mode || "off"
+    }
+    Component.onCompleted: running = true
   }
 
   Process {
@@ -1527,44 +1555,85 @@ Panel {
           fontFamily: root.bar.fontFamily
         }
 
-        Row {
-          id: dnsRow
+        Column {
+          visible: root.dnsLocked
           width: parent.width
           spacing: Style.space(6)
 
-          readonly property int count: 4
-          readonly property real cellWidth: (width - spacing * (count - 1)) / count
-
-          DnsProviderPill {
-            provider: "DHCP"
-            index: 0
-            tooltipText: "Use DNS from DHCP"
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
+          Button {
+            width: parent.width
+            text: root.dnsLockTitle
+            tooltipText: "Parent can change this with omarchy parent dns"
+            fontSize: Style.font.bodySmall
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+            horizontalPadding: Style.spacing.controlPaddingX
+            verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+            bordered: true
+            active: true
+            hasCursor: root.cursorActive && root.focusSection === "dns"
+            onClicked: {}
           }
 
-          DnsProviderPill {
-            provider: "Cloudflare"
-            index: 1
-            tooltipText: "Set DNS to Cloudflare"
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
+          Text {
+            width: parent.width
+            text: "Parent can change this with omarchy parent dns"
+            textFormat: Text.PlainText
+            wrapMode: Text.WordWrap
+            color: root.bar.foreground
+            opacity: 0.7
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.bodySmall
+          }
+        }
+
+        Column {
+          visible: !root.dnsLocked
+          width: parent.width
+          spacing: Style.space(6)
+
+          Row {
+            id: dnsRow
+            width: parent.width
+            spacing: Style.space(6)
+            readonly property var providers: ["DHCP", "Cloudflare", "Google"]
+            readonly property int count: providers.length
+            readonly property real cellWidth: (width - spacing * (count - 1)) / count
+
+            Repeater {
+              model: dnsRow.providers
+              DnsProviderPill {
+                required property string modelData
+                required property int index
+                provider: modelData
+                index: index
+                tooltipText: Model.dnsTooltip(modelData)
+                width: dnsRow.cellWidth
+                onClicked: root.setDns(provider)
+              }
+            }
           }
 
-          DnsProviderPill {
-            provider: "Google"
-            index: 2
-            tooltipText: "Set DNS to Google"
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
-          }
+          Row {
+            id: dnsRowTwo
+            width: parent.width
+            spacing: Style.space(6)
+            readonly property var providers: ["Families", "Security", "Custom"]
+            readonly property int count: providers.length
+            readonly property real cellWidth: (width - spacing * (count - 1)) / count
 
-          DnsProviderPill {
-            provider: "Custom"
-            index: 3
-            tooltipText: "Set custom DNS servers"
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
+            Repeater {
+              model: dnsRowTwo.providers
+              DnsProviderPill {
+                required property string modelData
+                required property int index
+                provider: modelData
+                index: index + 3
+                tooltipText: Model.dnsTooltip(modelData)
+                width: dnsRowTwo.cellWidth
+                onClicked: root.setDns(provider)
+              }
+            }
           }
         }
       }

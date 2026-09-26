@@ -45,6 +45,24 @@ mode=$(stat -c '%a' "$write_dir/color.json")
 [[ $mode == "644" ]] || fail "theme colour creates a root-mode policy file" "mode=$mode"
 pass "theme colour writes a 0644 color.json"
 
+browser_policy_install_dns "$write_dir" lock ||
+  fail "Family DNS writes dns.json into a writable policy directory"
+grep -F '"DnsOverHttpsMode": "off"' "$write_dir/dns.json" >/dev/null ||
+  fail "Family DNS turns Chromium DoH off"
+mode=$(stat -c '%a' "$write_dir/dns.json")
+[[ $mode == "644" ]] || fail "Family DNS creates a root-mode dns.json" "mode=$mode"
+printf 'original\n' >"$test_tmp/dns-pwn"
+rm -f "$write_dir/dns.json"
+ln -s "$test_tmp/dns-pwn" "$write_dir/dns.json"
+browser_policy_install_dns "$write_dir" lock ||
+  fail "Family DNS replaces a planted dns.json symlink"
+[[ -f $write_dir/dns.json && ! -L $write_dir/dns.json ]] ||
+  fail "Family DNS unlinks a planted dns.json symlink instead of writing through it"
+grep -Fxq 'original' "$test_tmp/dns-pwn" || fail "Family DNS leaves the symlink target unchanged"
+browser_policy_install_dns "$write_dir" unlock || fail "Family DNS unlock removes dns.json"
+[[ ! -e $write_dir/dns.json ]] || fail "Family DNS unlock deletes dns.json"
+pass "Family DNS writes a 0644 dns.json and does not follow a planted symlink"
+
 if (( EUID == 0 )); then
   pass "running as root; skipping the mktemp-failure check"
 else
@@ -300,13 +318,16 @@ pass "the policy-directory migration does not abort on a failed theme refresh"
 
 policy_files=(
   "$ROOT/bin/omarchy-install-browser"
+  "$ROOT/bin/omarchy-parent-dns"
   "$ROOT/bin/omarchy-provision-owner"
   "$ROOT/bin/omarchy-theme-set-browser"
   "$ROOT/bin/omarchy-theme-set-browser-policy"
   "$ROOT/bin/omarchy-upgrade-to-quattro"
   "$ROOT/install/config/theme-system.sh"
   "$ROOT/install/config/browser-policy.sh"
+  "$ROOT/install/config/dns.sh"
   "$ROOT/install/helpers/browser-policy.sh"
+  "$ROOT/install/helpers/dns.sh"
   "$ROOT/migrations/1787515927.sh"
 )
 if grep -nE 'chmod a\+rwx\b|chmod a\+rw\b|chmod a\+w\b|chmod o\+w|chmod ugo\+w|chmod 2775\b|chmod 2777\b|chmod 0777\b|chmod 777\b|install -d -m 0?[27]?777|omarchy-browser-policy' "${policy_files[@]}" >/dev/null; then

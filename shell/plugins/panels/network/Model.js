@@ -1,3 +1,24 @@
+function dnsProviderList() {
+  return ["DHCP", "Cloudflare", "Google", "Families", "Security", "Custom"]
+}
+
+function dnsLocked(childInstall, parentMode) {
+  return !!childInstall && (parentMode === "families" || parentMode === "security")
+}
+
+function dnsLockTitle(parentMode) {
+  if (parentMode === "security") return "Security DNS · locked"
+  return "Family DNS · locked"
+}
+
+function dnsTooltip(provider) {
+  if (provider === "DHCP") return "Use DNS from DHCP"
+  if (provider === "Families") return "Cloudflare Families (malware + adult)"
+  if (provider === "Security") return "Cloudflare Families (malware only)"
+  if (provider === "Custom") return "Set custom DNS servers"
+  return "Set DNS to " + provider
+}
+
 function parseNetworkStatus(raw) {
   var parts = String(raw || "disconnected\t\t\t").replace(/\r?\n+$/, "").split("\t")
   return {
@@ -365,6 +386,10 @@ function shouldRepromptPassphrase(reason, needsCredentials, reasons) {
 
 if (typeof module !== "undefined") {
   module.exports = {
+    dnsProviderList: dnsProviderList,
+    dnsLocked: dnsLocked,
+    dnsLockTitle: dnsLockTitle,
+    dnsTooltip: dnsTooltip,
     parseNetworkStatus: parseNetworkStatus,
     wifiIconFor: wifiIconFor,
     connectionIcon: connectionIcon,

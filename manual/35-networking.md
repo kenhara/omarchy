@@ -12,9 +12,13 @@ If you actually need the password itself, `omarchy network password <interface>`
 
 ## DNS
 
-Omarchy uses whatever DNS your network hands out over DHCP. You can override that for the whole machine under _Setup > Network > DNS_, where Cloudflare and Google are one click away. Pick _Custom_ to type in your own servers.
+Omarchy uses whatever DNS your network hands out over DHCP. You can override that for the whole machine under _Setup > Network > DNS_, where Cloudflare, Google, and Cloudflare Families are one click away. Pick _Custom_ to type in your own servers.
 
-From the terminal, `omarchy dns` prints the current provider and `omarchy dns Cloudflare` sets one.
+_Families_ is Cloudflare 1.1.1.1 for Families at `1.1.1.3` (malware and adult content) over strict DNS-over-TLS to `family.cloudflare-dns.com`. _Security_ is the malware-only address `1.1.1.2`. Neither falls back to unfiltered Quad9.
+
+From the terminal, `omarchy dns` prints the current provider and `omarchy dns Cloudflare` or `omarchy dns Families` sets one.
+
+On a child install, Family DNS is on by default and locked: the network panel and _Setup > Network > DNS_ will not change it. A parent turns it off, or switches to malware-only, with `sudo omarchy-parent dns off` or `sudo omarchy-parent dns security`. `sudo omarchy-parent dns on` puts Families back. Hotel and school captive portals sometimes need ordinary DHCP DNS to sign in; use `off`, join the network, then `on` again. See [security](48-security.md) for what this does and does not block.
 
 ## Pinning the Wi-Fi band
 

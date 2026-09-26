@@ -37,6 +37,7 @@ create=$(section create_user)
 [[ $create == *"printf '%s:%s\\n' root \"\$password\" | chpasswd"* ]] || fail "root keeps the one password on a default install"
 [[ $create == *"printf '%s:%s\\n' \"\$username\" \"\$password\" | chpasswd"* ]] || fail "the account gets the kid password"
 [[ $create == *'omarchy-parent apply --user "$username"'* ]] || fail "create_user applies the parental posture"
+[[ $create == *'omarchy-parent-dns on'* ]] || fail "create_user turns Family DNS on"
 [[ $create == *'useradd -m ${groups:+-G "$groups"}'* ]] || fail "useradd tolerates an empty group list"
 [[ $create == *'usermod ${groups:+-aG "$groups"}'* ]] || fail "usermod tolerates an empty group list"
 pass "create_user keeps root for the parent and applies the posture"

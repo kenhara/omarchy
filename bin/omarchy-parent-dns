@@ -1,0 +1,215 @@
+#!/bin/bash
+
+# omarchy:summary=Family DNS filtering for child installs
+# omarchy:args=[on|off|security|status|apply]
+# omarchy:examples=sudo omarchy-parent dns on | sudo omarchy-parent dns off | sudo omarchy-parent dns security
+# omarchy:requires-sudo=true
+
+# Parent-password gated DNS lock for a child install. `on` is Cloudflare
+# Families (1.1.1.3, malware + adult) over strict DNS-over-TLS;
+# `security` is malware-only (1.1.1.2); `off` returns the machine to DHCP
+# and unlocks the network panel. Status is readable without a password.
+
+set -euo pipefail
+
+OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+
+fail() {
+  echo "Error: $1" >&2
+  exit 1
+}
+
+source "$OMARCHY_PATH/install/helpers/parent.sh"
+source "$OMARCHY_PATH/install/helpers/dns.sh"
+source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
+
+usage() {
+  cat <<USAGE
+Usage: omarchy-parent dns [on|off|security|status|apply]
+
+on        Cloudflare Families (1.1.1.3, malware + adult content) and lock
+off       DHCP DNS, unlock the network panel and browser DoH
+security  Cloudflare Families malware-only (1.1.1.2) and lock
+status    Print the current lock: families, security, or off
+apply     Re-write connections, resolved, and browser policy from parent.conf
+
+Hotel and school captive portals may fail under strict DNS-over-TLS. Sign in
+with \`omarchy-parent dns off\`, then \`omarchy-parent dns on\` afterwards.
+USAGE
+}
+
+document_dns_key() {
+  conf_document dns families \
+    "dns: Family DNS lock for a child install." \
+    "  families   Cloudflare 1.1.1.3 (malware + adult) over strict DNS-over-TLS (default)" \
+    "  security   Cloudflare 1.1.1.2 (malware only) over strict DNS-over-TLS" \
+    "  off        DHCP DNS; the kid may change providers after the parent password"
+}
+
+require_child_install() {
+  omarchy-profile-child || fail "this is not a child install; omarchy-parent dns only applies to the kids mode profile"
+}
+
+status_word() {
+  if ! omarchy-profile-child; then
+    echo off
+    return
+  fi
+  dns_parent_mode
+}
+
+status_report() {
+  local mode provider
+  mode=$(status_word)
+  provider=$(current_dns_provider)
+  case "$mode" in
+    families)
+      echo "dns=families: Cloudflare Families (1.1.1.3, malware + adult) is locked."
+      ;;
+    security)
+      echo "dns=security: Cloudflare Families (1.1.1.2, malware only) is locked."
+      ;;
+    *)
+      echo "dns=off: Family DNS is off; the machine uses $provider."
+      ;;
+  esac
+}
+
+apply_browser_policy() {
+  local action="$1"
+  local dir
+
+  for dir in "${BROWSER_POLICY_MANAGED_DIRS[@]}"; do
+    browser_policy_install_dns "$dir" "$action" || true
+  done
+  for dir in "${BROWSER_POLICY_FIREFOX_DIRS[@]}"; do
+    browser_policy_install_firefox_dns "$dir" "$action" || true
+  done
+}
+
+apply_from_conf() {
+  local mode="${1:-}"
+  local connection="${2:-}"
+  local if_needed="${3:-0}"
+  local provider
+
+  [[ -n $mode ]] || mode=$(dns_parent_mode)
+
+  case "$mode" in
+    families) provider=Families ;;
+    security) provider=Security ;;
+    off) provider=DHCP ;;
+    *) fail "dns=$mode in $PARENT_CONF is not families, security, or off" ;;
+  esac
+
+  if [[ -n $connection ]]; then
+    if [[ $provider == "DHCP" ]]; then
+      return 0
+    fi
+    if (( if_needed )); then
+      dns_lock_one_connection "$connection" || true
+    else
+      dns_lock_one_connection "$connection"
+    fi
+    return 0
+  fi
+
+  dns_apply_provider "$provider"
+  reload_dns_stack
+  if [[ $provider == "DHCP" ]]; then
+    apply_browser_policy unlock
+  else
+    apply_browser_policy lock
+  fi
+}
+
+set_mode() {
+  local mode="$1"
+  require_child_install
+  document_dns_key
+  conf_set dns "$mode"
+  apply_from_conf "$mode"
+  status_report
+}
+
+command="${1:-status}"
+connection=""
+if_needed=0
+shift || true
+
+while (($#)); do
+  case "$1" in
+    --connection)
+      connection="${2:-}"
+      shift 2
+      ;;
+    --if-needed)
+      if_needed=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+case "$command" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
+  status)
+    if [[ -t 1 ]]; then
+      status_report
+    else
+      status_word
+    fi
+    exit 0
+    ;;
+  on|off|security|apply|families)
+    ;;
+  *)
+    echo "Unknown command: $command" >&2
+    usage >&2
+    exit 1
+    ;;
+esac
+
+if (( EUID != 0 )); then
+  mapfile -t gum_env < <(env | grep '^GUM_' || true)
+  sudo_args=("$command")
+  [[ -n $connection ]] && sudo_args+=(--connection "$connection")
+  (( if_needed )) && sudo_args+=(--if-needed)
+  exec sudo env OMARCHY_PATH="$OMARCHY_PATH" "${gum_env[@]}" "$0" "${sudo_args[@]}"
+fi
+
+case "$command" in
+  on|families)
+    set_mode families
+    ;;
+  security)
+    set_mode security
+    ;;
+  off)
+    set_mode off
+    ;;
+  apply)
+    require_child_install
+    document_dns_key
+    apply_from_conf "$(dns_parent_mode)" "$connection" "$if_needed"
+    if [[ -z $connection ]]; then
+      status_report
+    fi
+    ;;
+esac

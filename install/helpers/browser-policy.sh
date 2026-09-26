@@ -166,3 +166,115 @@ browser_policy_setup_firefox_distribution() {
   browser_policy_purge_dir "$distribution_dir"
   browser_policy_install_firefox_policies "$distribution_dir" "$policies"
 }
+
+# Chromium-family managed drop-in. Sibling to color.json; the managed directory
+# supports multiple JSON files. lock writes DnsOverHttpsMode=off so the browser
+# uses system DNS (Families). unlock removes only this file.
+browser_policy_install_dns() {
+  local policy_dir=$1
+  local action=${2:-lock}
+  local dest=$policy_dir/dns.json
+  local tmp
+
+  [[ -d $policy_dir && ! -L $policy_dir ]] || return 0
+
+  if [[ $action == "unlock" ]]; then
+    if [[ -L $dest || -d $dest ]]; then
+      rm -rf -- "$dest" 2>/dev/null || return 1
+    else
+      rm -f -- "$dest"
+    fi
+    return 0
+  fi
+
+  tmp=$(mktemp) || return 1
+  printf '%s\n' '{"DnsOverHttpsMode": "off"}' >"$tmp"
+
+  if [[ -L $dest || -d $dest ]]; then
+    if ! rm -rf -- "$dest" 2>/dev/null; then
+      rm -f "$tmp"
+      return 1
+    fi
+  fi
+
+  if install -m 0644 -T "$tmp" "$dest" 2>/dev/null; then
+    rm -f "$tmp"
+    return 0
+  fi
+
+  rm -f "$tmp"
+  return 1
+}
+
+# Firefox/Zen have a single policies.json (no drop-ins). Merge DNSOverHTTPS
+# into the existing file so VAAPI and the other stock Preferences stay.
+# unlock removes only that key.
+browser_policy_install_firefox_dns() {
+  local distribution_dir=$1
+  local action=${2:-lock}
+  local dest=$distribution_dir/policies.json
+  local stock=${OMARCHY_PATH:-/usr/share/omarchy}/default/firefox/policies.json
+  local tmp
+
+  [[ -d $distribution_dir && ! -L $distribution_dir ]] || return 0
+
+  if [[ ! -f $dest || -L $dest ]]; then
+    [[ -f $stock ]] || return 1
+    browser_policy_install_firefox_policies "$distribution_dir" "$stock" || return 1
+  fi
+
+  [[ -f $dest && ! -L $dest ]] || return 1
+
+  tmp=$(mktemp) || return 1
+  if ! python3 - "$dest" "$stock" "$action" "$tmp" <<'PY'
+import json
+import sys
+
+dest, stock, action, tmp = sys.argv[1:5]
+
+def load(path):
+    with open(path, encoding="utf-8") as handle:
+        return json.load(handle)
+
+try:
+    data = load(dest)
+except (OSError, json.JSONDecodeError):
+    data = load(stock)
+
+if not isinstance(data, dict):
+    data = {"policies": {}}
+
+policies = data.setdefault("policies", {})
+if not isinstance(policies, dict):
+    policies = {}
+    data["policies"] = policies
+
+if action == "lock":
+    policies["DNSOverHTTPS"] = {"Enabled": False, "Locked": True}
+else:
+    policies.pop("DNSOverHTTPS", None)
+
+with open(tmp, "w", encoding="utf-8") as handle:
+    json.dump(data, handle, indent=2)
+    handle.write("\n")
+PY
+  then
+    rm -f "$tmp"
+    return 1
+  fi
+
+  if [[ -L $dest || -d $dest ]]; then
+    if ! rm -rf -- "$dest" 2>/dev/null; then
+      rm -f "$tmp"
+      return 1
+    fi
+  fi
+
+  if install -m 0644 -T "$tmp" "$dest" 2>/dev/null; then
+    rm -f "$tmp"
+    return 0
+  fi
+
+  rm -f "$tmp"
+  return 1
+}

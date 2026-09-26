@@ -211,6 +211,8 @@ if grep -q '"system": {[^}]*omarchy-profile-child' "$menu"; then
   fail "System stays on a child install so lock and power remain reachable"
 fi
 grep -q '"update.password.parent": {[^}]*"when":"omarchy-profile-child"' "$menu" || fail "Update > Password > Parent stays on a child install"
+grep -q '"setup.network.dns.dhcp": {[^}]*omarchy-parent-dns' "$menu" || fail "the DNS menu rows hide while Family DNS is locked"
+grep -q '"setup.network.dns.locked": {[^}]*"when":"omarchy-profile-child &&' "$menu" || fail "a locked Family DNS row appears on a child install"
 pass "the menu keeps the grants that would land on the kid account off a child install"
 
 # Features plug in as omarchy-parent-<name> beside this command: help lists

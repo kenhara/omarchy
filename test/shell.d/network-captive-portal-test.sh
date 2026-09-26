@@ -74,6 +74,10 @@ chmod +x "$stage/bin/noop"
 for command in omarchy-dns omarchy-network-band; do
   ln -s noop "$stage/bin/$command"
 done
+# Family DNS lock is off in this fixture so the DNS row stays the adult picker
+# and cannot hide the captive-portal controls the test is driving.
+printf '#!/bin/bash\nexit 1\n' >"$stage/bin/omarchy-parent-dns"
+chmod +x "$stage/bin/omarchy-parent-dns"
 # Preview uses only synthetic details, never the host's SSID or addresses.
 # Normal assertions keep the details empty to exercise missing-route handling.
 printf '#!/bin/bash\nif [[ -n ${NETWORK_TEST_PREVIEW:-} ]]; then\n  printf "type\\twifi\\niface\\ttest-wifi\\nssid\\tGuest Wi-Fi\\nip\\t192.0.2.10\\ngateway\\t192.0.2.1\\n"\nfi\n' > "$stage/bin/omarchy-network-status"

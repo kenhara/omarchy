@@ -1,0 +1,201 @@
+#!/bin/bash
+
+# omarchy:summary=Lock family DNS on a child install
+# omarchy:args=[on|off|security|status|apply|locked|fix-connection]
+# omarchy:examples=sudo omarchy-parent dns on | omarchy parent dns off | omarchy-parent dns security
+# omarchy:requires-sudo=true
+
+# Family DNS for a child install. on is Cloudflare 1.1.1.1 for Families
+# (malware + adult) over strict DNS-over-TLS; security is malware only;
+# off returns DHCP and stops enforcing a resolver. status and locked
+# answer without a password so the menu and network panel can read them.
+# fix-connection is the NetworkManager dispatcher hook: one UUID, no
+# resolved/browser rewrite.
+
+set -euo pipefail
+
+OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+
+fail() {
+  echo "Error: $1" >&2
+  exit 1
+}
+
+source "$OMARCHY_PATH/install/helpers/parent.sh"
+source "$OMARCHY_PATH/install/helpers/dns.sh"
+source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
+
+usage() {
+  cat <<USAGE
+Usage: omarchy-parent dns [on|off|security|status|apply|locked|fix-connection]
+
+on              Cloudflare Families (malware + adult, 1.1.1.3) over strict DNS-over-TLS, and lock
+off             DHCP DNS; stops enforcing a resolver. Changing the provider still asks for the parent password
+security        Cloudflare Families malware only (1.1.1.2) over strict DNS-over-TLS, and lock
+status          Print the current mode and resolver (no password)
+apply           Re-write connections, resolved, and browser policy from the saved mode
+locked          Exit 0 and print yes when a child install has family DNS locked
+fix-connection  Re-apply the locked resolver on one NetworkManager connection (dispatcher)
+USAGE
+}
+
+require_child_install() {
+  omarchy-profile-child || fail "this is not a child install; omarchy-parent dns only applies to the kids mode profile"
+}
+
+document_dns() {
+  conf_document dns on \
+    "dns: family DNS filtering on a child install." \
+    "  on        Cloudflare Families (malware + adult, 1.1.1.3) over strict DNS-over-TLS (default)" \
+    "  security  Cloudflare Families malware only (1.1.1.2)" \
+    "  off       DHCP DNS; stops enforcing a resolver. Changing the provider still asks for the parent password (the kid is not in wheel)"
+}
+
+print_status() {
+  local mode provider
+  mode=$(dns_mode)
+  provider=$(dns_detect_provider)
+  printf 'mode=%s\n' "$mode"
+  printf 'provider=%s\n' "$provider"
+  if dns_locked; then
+    echo "locked=yes"
+  else
+    echo "locked=no"
+  fi
+}
+
+apply_mode() {
+  local mode="$1"
+  document_dns
+  conf_set dns "$mode"
+  export OMARCHY_PARENT_DNS_APPLY=1
+  case "$mode" in
+    on)
+      "$OMARCHY_PATH/bin/omarchy-dns" Families
+      browser_policy_apply_doh_off
+      ;;
+    security)
+      "$OMARCHY_PATH/bin/omarchy-dns" Security
+      browser_policy_apply_doh_off
+      ;;
+    off)
+      "$OMARCHY_PATH/bin/omarchy-dns" DHCP
+      browser_policy_clear_doh
+      ;;
+    *)
+      fail "dns mode '$mode' is not on, off, or security"
+      ;;
+  esac
+}
+
+connection_dns_field() {
+  local line="$1" key="$2"
+  [[ $line == "$key:"* ]] || return 1
+  printf '%s\n' "${line#*:}"
+}
+
+connection_dns_matches_mode() {
+  local uuid="$1"
+  local provider="$2"
+  local expected4 expected6
+  local ignore4="" dns4="" ignore6="" dns6=""
+  local line
+
+  expected4=$(dns_normalize_list "$(dns_provider_ipv4 "$provider")")
+  expected6=$(dns_normalize_list "$(dns_provider_ipv6 "$provider")")
+
+  while IFS= read -r line; do
+    if connection_dns_field "$line" ipv4.ignore-auto-dns >/dev/null; then
+      ignore4=$(connection_dns_field "$line" ipv4.ignore-auto-dns)
+    elif connection_dns_field "$line" ipv4.dns >/dev/null; then
+      dns4=$(dns_normalize_list "$(connection_dns_field "$line" ipv4.dns)")
+    elif connection_dns_field "$line" ipv6.ignore-auto-dns >/dev/null; then
+      ignore6=$(connection_dns_field "$line" ipv6.ignore-auto-dns)
+    elif connection_dns_field "$line" ipv6.dns >/dev/null; then
+      dns6=$(dns_normalize_list "$(connection_dns_field "$line" ipv6.dns)")
+    fi
+  done < <(nmcli -t -f ipv4.ignore-auto-dns,ipv4.dns,ipv6.ignore-auto-dns,ipv6.dns connection show "$uuid")
+
+  [[ $ignore4 == yes && $ignore6 == yes && $dns4 == "$expected4" && $dns6 == "$expected6" ]]
+}
+
+fix_connection() {
+  local uuid="$1"
+  local device="${2:-${DEVICE_IFACE:-}}"
+  local provider
+
+  [[ -n $uuid ]] || fail "fix-connection needs a connection UUID"
+  require_child_install
+  dns_locked || return 0
+  provider=$(dns_locked_provider) || return 0
+
+  if connection_dns_matches_mode "$uuid" "$provider"; then
+    return 0
+  fi
+
+  nmcli connection modify "$uuid" \
+    ipv4.ignore-auto-dns yes \
+    ipv4.dns "$(dns_provider_ipv4 "$provider")" \
+    ipv6.ignore-auto-dns yes \
+    ipv6.dns "$(dns_provider_ipv6 "$provider")"
+
+  if [[ -n $device ]]; then
+    nmcli device reapply "$device"
+  fi
+}
+
+case "${1:-status}" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
+  locked)
+    if dns_locked; then
+      echo yes
+      exit 0
+    fi
+    echo no
+    exit 1
+    ;;
+  status)
+    print_status
+    exit 0
+    ;;
+  on|off|security|apply|fix-connection)
+    ;;
+  *)
+    echo "Unknown command: $1" >&2
+    usage >&2
+    exit 1
+    ;;
+esac
+
+if (( EUID != 0 )); then
+  status=0
+  sudo env OMARCHY_PATH="$OMARCHY_PATH" "$0" "$@" || status=$?
+  sudo -k
+  exit "$status"
+fi
+
+require_child_install
+
+case "$1" in
+  on)
+    apply_mode on
+    echo "Family DNS is on (Cloudflare Families, malware + adult)."
+    ;;
+  security)
+    apply_mode security
+    echo "Family DNS is on (Cloudflare Families, malware only)."
+    ;;
+  off)
+    apply_mode off
+    echo "Family DNS is off. The machine uses DHCP DNS and is no longer enforcing a resolver."
+    ;;
+  apply)
+    apply_mode "$(dns_mode)"
+    ;;
+  fix-connection)
+    fix_connection "${2:-}" "${3:-}"
+    ;;
+esac

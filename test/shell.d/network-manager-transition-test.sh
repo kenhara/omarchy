@@ -5,10 +5,11 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 dns="$ROOT/bin/omarchy-dns"
+helper="$ROOT/install/helpers/dns.sh"
 hardware_network="$ROOT/install/hardware/network.sh"
 
 ! grep -F 'systemd-networkd' "$dns" >/dev/null || fail "omarchy-dns no longer restarts systemd-networkd"
-grep -F 'NetworkManager/conf.d/20-omarchy-dns.conf' "$dns" >/dev/null
+grep -F 'NetworkManager/conf.d/20-omarchy-dns.conf' "$dns" "$helper" >/dev/null
 grep -F '[global-dns-domain-*]' "$dns" >/dev/null
 grep -F 'ipv4.ignore-auto-dns yes' "$dns" >/dev/null
 grep -F 'ipv4.ignore-auto-dns no' "$dns" >/dev/null

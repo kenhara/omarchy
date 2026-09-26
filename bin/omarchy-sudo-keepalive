@@ -3,7 +3,34 @@
 # omarchy:summary=Prompt for sudo once and keep the credential alive in the background.
 # omarchy:requires-sudo=true
 
+# Sourced by installers. Chain any EXIT trap the caller already set so a
+# cleanup that removes partial files still runs.
+
 sudo -v
 while true; do sudo -n true; sleep 60; done 2>/dev/null &
 SUDO_KEEPALIVE_PID=$!
-trap "kill $SUDO_KEEPALIVE_PID 2>/dev/null" EXIT
+
+# Remember the child-profile decision now. A prefix assignment on `source`
+# does not survive until EXIT, and the caller's trap must still run.
+_omarchy_sudo_keepalive_drop_ticket=0
+if omarchy-profile-child; then
+  _omarchy_sudo_keepalive_drop_ticket=1
+fi
+
+_omarchy_prev_exit_body=
+if _omarchy_prev_exit=$(trap -p EXIT) && [[ -n $_omarchy_prev_exit ]]; then
+  _omarchy_prev_exit_body=${_omarchy_prev_exit#trap -- \'}
+  _omarchy_prev_exit_body=${_omarchy_prev_exit_body%\' EXIT}
+fi
+
+_omarchy_sudo_keepalive_on_exit() {
+  kill "$SUDO_KEEPALIVE_PID" 2>/dev/null || true
+  if (( _omarchy_sudo_keepalive_drop_ticket )); then
+    sudo -k
+  fi
+  if [[ -n ${_omarchy_prev_exit_body:-} ]]; then
+    eval "$_omarchy_prev_exit_body"
+  fi
+}
+
+trap -- '_omarchy_sudo_keepalive_on_exit' EXIT

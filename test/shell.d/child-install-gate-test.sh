@@ -347,7 +347,76 @@ pass "refresh still copies child webapps without sudo"
 
 grep -Fq 'sudo -v' "$ROOT/install/helpers/child-install.sh" ||
   fail "the install gate still authenticates with sudo -v"
-grep -Fq "trap 'sudo -k' EXIT" "$ROOT/install/helpers/child-install.sh" ||
-  fail "the install gate drops the ticket when the command finishes"
+grep -Fq child_drop_install_ticket "$ROOT/install/helpers/child-install.sh" ||
+  fail "the helper exposes child_drop_install_ticket for the command's cleanup"
+if grep -qE '^[[:space:]]*trap ' "$ROOT/install/helpers/child-install.sh"; then
+  fail "the sourced install helper must not set an EXIT trap"
+fi
+for hub in omarchy-webapp-install omarchy-tui-install omarchy-install-gaming-geforce-now; do
+  grep -Fq 'trap child_drop_install_ticket EXIT' "$ROOT/bin/$hub" ||
+    fail "$hub drops the ticket from its own EXIT trap"
+done
 [[ ! -e $ROOT/migrations/1790417490.sh ]] || fail "the child sudo timeout migration is gone"
 pass "the install gate asks once and drops the ticket"
+
+# Sourced helper must not replace a caller's EXIT trap. sudo -k still runs
+# from the command's own cleanup on both success and failure.
+caller_partial=$test_tmp/caller-partial
+reset_sudo
+: >"$caller_partial"
+(
+  trap 'rm -f "$caller_partial" # caller-partial' EXIT
+  source "$ROOT/install/helpers/child-install.sh"
+  OMARCHY_PROFILE_FILE="$child_marker" child_require_install
+  trap -p EXIT | grep -Fq caller-partial ||
+    fail "child_require_install left the caller EXIT trap in place"
+  if grep -qxF -- '-k' "$sudo_log"; then
+    fail "the sourced helper does not drop the ticket itself" "$(cat "$sudo_log")"
+  fi
+)
+[[ ! -f $caller_partial ]] || fail "the caller EXIT trap still runs after sourcing the install helper"
+pass "sourcing the install helper keeps the caller EXIT trap"
+
+reset_sudo
+: >"$caller_partial"
+if OMARCHY_PROFILE_FILE="$child_marker" \
+  omarchy-webapp-install "Bad/Name" https://example.com webapp >/dev/null 2>"$test_tmp/webapp-fail.err"; then
+  fail "a slash in the webapp name still fails after the gate"
+fi
+[[ $(<"$sudo_log") == $'-v\n-k' ]] ||
+  fail "a failed child webapp install still drops the ticket" "$(cat "$sudo_log")"
+[[ ! -f $ticket ]] || fail "a failed child webapp install leaves no ticket"
+[[ ! -e $test_home/.local/share/applications/Bad/Name.desktop ]] ||
+  fail "a failed child webapp install writes no desktop file"
+pass "a failed child webapp install still drops the ticket"
+
+reset_sudo
+: >"$caller_partial"
+(
+  export OMARCHY_PROFILE_FILE="$child_marker"
+  trap 'rm -f "$caller_partial"' EXIT
+  source omarchy-sudo-keepalive
+  [[ -f $ticket ]] || fail "keepalive mints a ticket"
+  exit 0
+)
+[[ ! -f $caller_partial ]] || fail "keepalive chains the caller EXIT trap on success"
+grep -qxF -- '-k' "$sudo_log" || fail "keepalive drops the ticket on success" "$(cat "$sudo_log")"
+[[ ! -f $ticket ]] || fail "keepalive leaves no ticket on success"
+pass "keepalive chains the caller EXIT trap and drops the ticket on success"
+
+reset_sudo
+: >"$caller_partial"
+keepalive_fail_status=0
+(
+  export OMARCHY_PROFILE_FILE="$child_marker"
+  trap 'rm -f "$caller_partial"' EXIT
+  source omarchy-sudo-keepalive
+  [[ -f $ticket ]] || exit 2
+  exit 1
+) || keepalive_fail_status=$?
+(( keepalive_fail_status == 1 )) ||
+  fail "the keepalive failure fixture exits 1" "status=$keepalive_fail_status"
+[[ ! -f $caller_partial ]] || fail "keepalive chains the caller EXIT trap on failure"
+grep -qxF -- '-k' "$sudo_log" || fail "keepalive drops the ticket on failure" "$(cat "$sudo_log")"
+[[ ! -f $ticket ]] || fail "keepalive leaves no ticket on failure"
+pass "keepalive chains the caller EXIT trap and drops the ticket on failure"

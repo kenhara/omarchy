@@ -18,7 +18,13 @@ if (( EUID == 0 )); then
   export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
 fi
 
-source "${OMARCHY_PATH:-/usr/share/omarchy}/install/helpers/dns.sh"
+if [[ -n ${OMARCHY_PATH:-} && -f $OMARCHY_PATH/install/helpers/dns.sh ]]; then
+  source "$OMARCHY_PATH/install/helpers/dns.sh"
+elif [[ -f /usr/share/omarchy/install/helpers/dns.sh ]]; then
+  source /usr/share/omarchy/install/helpers/dns.sh
+else
+  source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)/install/helpers/dns.sh"
+fi
 
 # The path etc/sudoers.d/omarchy-dns names. The privileged half always runs from
 # there rather than from whichever copy was invoked, so the rule matches even

@@ -9,7 +9,7 @@ helper="$ROOT/install/helpers/dns.sh"
 hardware_network="$ROOT/install/hardware/network.sh"
 
 ! grep -F 'systemd-networkd' "$dns" >/dev/null || fail "omarchy-dns no longer restarts systemd-networkd"
-grep -F 'source "${OMARCHY_PATH:-/usr/share/omarchy}/install/helpers/dns.sh"' "$dns" >/dev/null
+grep -F 'install/helpers/dns.sh' "$dns" >/dev/null
 grep -F 'NetworkManager/conf.d/20-omarchy-dns.conf' "$helper" >/dev/null
 grep -F '[global-dns-domain-*]' "$helper" >/dev/null
 grep -F 'ipv4.ignore-auto-dns yes' "$helper" >/dev/null

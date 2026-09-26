@@ -9,6 +9,7 @@ QtObject {
 
   property string home: Quickshell.env("HOME")
   property string pluginsDir: home + "/.config/omarchy/plugins"
+  property string omarchyPath: Quickshell.env("OMARCHY_PATH")
 
   // Set by shell.qml at startup so we can also scan bundled first-party plugins.
   property string firstPartyDir: ""
@@ -697,6 +698,7 @@ QtObject {
     // directory without wrapper folders.
     // Third-party plugins stay at the top level of ~/.config/omarchy/plugins.
     var script = ""
+      + "source \"$2/install/helpers/plugin-parent-gate.sh\"; "
       + "emit_manifest() { local kind=\"$1\"; local manifest=\"$2\"; local sub; "
       + "  if [[ ${manifest##*/} == \"manifest.json\" ]]; then sub=\"${manifest%/manifest.json}\"; else sub=\"$(dirname -- \"$manifest\")\"; fi; "
       + "  printf '===%s::%s===\\n' \"$kind\" \"$sub\"; "
@@ -707,16 +709,16 @@ QtObject {
       + "  [[ -d \"$dir\" ]] || return 0; "
       + "  while IFS= read -r manifest; do emit_manifest firstparty \"$manifest\"; done < <(find \"$dir\" -mindepth 2 -maxdepth 3 -type f \\( -name manifest.json -o -name '*.manifest.json' \\) | sort); "
       + "}; "
-      + "scan_thirdparty() { local dir=\"$1\"; "
+      + "scan_thirdparty() { local dir=\"$1\" manifest; "
       + "  [[ -d \"$dir\" ]] || return 0; "
-      + "  for sub in \"$dir\"/*/; do "
-      + "    [[ -f \"$sub/manifest.json\" ]] || continue; "
-      + "    emit_manifest thirdparty \"$sub/manifest.json\"; "
-      + "  done; "
+      + "  while IFS= read -r manifest; do "
+      + "    [[ -n $manifest ]] || continue; "
+      + "    emit_manifest thirdparty \"$manifest\"; "
+      + "  done < <(scan_thirdparty_plugin_manifests \"$dir\"); "
       + "}; "
       + "scan_firstparty \"$0\"; "
       + "scan_thirdparty \"$1\""
-    scanProcess.command = ["bash", "-c", script, registry.firstPartyDir, registry.pluginsDir]
+    scanProcess.command = ["bash", "-c", script, registry.firstPartyDir, registry.pluginsDir, registry.omarchyPath]
     scanProcess.running = true
   }
 

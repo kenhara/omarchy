@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Show or configure the system DNS provider
-# omarchy:args=[Cloudflare|Google|DHCP|Custom]
-# omarchy:examples=omarchy dns | omarchy dns Cloudflare | omarchy dns Custom
+# omarchy:args=[Cloudflare|Families|Security|Google|DHCP|Custom]
+# omarchy:examples=omarchy dns | omarchy dns Cloudflare | omarchy dns Families | omarchy dns Custom
 
 set -euo pipefail
 
@@ -18,27 +18,8 @@ if (( EUID == 0 )); then
   export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
 fi
 
-NM_DNS_CONF=/etc/NetworkManager/conf.d/20-omarchy-dns.conf
-
-provider_from_arg() {
-  case "${1:-}" in
-  Cloudflare | cloudflare)
-    echo "Cloudflare"
-    ;;
-  Google | google)
-    echo "Google"
-    ;;
-  DHCP | dhcp)
-    echo "DHCP"
-    ;;
-  Custom | custom)
-    echo "Custom"
-    ;;
-  *)
-    return 1
-    ;;
-  esac
-}
+OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+source "$OMARCHY_PATH/install/helpers/dns.sh"
 
 # The path etc/sudoers.d/omarchy-dns names. The privileged half always runs from
 # there rather than from whichever copy was invoked, so the rule matches even
@@ -66,56 +47,6 @@ require_root() {
     exec sudo "$PACKAGED_PATH" "$@"
   else
     exec pkexec "$PACKAGED_PATH" "$@"
-  fi
-}
-
-networkmanager_global_dns() {
-  [[ -f $NM_DNS_CONF ]] || return 0
-
-  awk -F= '
-    /^[[:space:]]*#/ { next }
-    /^[[:space:]]*\[global-dns-domain-\*\][[:space:]]*$/ { in_default = 1; next }
-    /^[[:space:]]*\[/ { in_default = 0 }
-    in_default && /^[[:space:]]*servers[[:space:]]*=/ {
-      value = $0
-      sub(/^[^=]*=/, "", value)
-      print value
-      exit
-    }
-  ' "$NM_DNS_CONF"
-}
-
-resolved_dns() {
-  awk -F= '
-    /^[[:space:]]*#/ { next }
-    /^[[:space:]]*DNS[[:space:]]*=/ {
-      value=$0
-      sub(/^[^=]*=/, "", value)
-      print value
-      exit
-    }
-  ' /etc/systemd/resolved.conf 2>/dev/null || true
-}
-
-current_dns_provider() {
-  local dns=""
-  local compact=""
-
-  dns=$(networkmanager_global_dns)
-  if [[ -z $(printf '%s' "$dns" | tr -d '[:space:],') ]]; then
-    dns=$(resolved_dns)
-  fi
-
-  compact=$(printf '%s' "$dns" | tr -d '[:space:],')
-
-  if [[ -z $compact ]]; then
-    echo "DHCP"
-  elif [[ $dns == *"cloudflare-dns.com"* || $dns == *"1.1.1.1"* || $dns == *"2606:4700:4700::1111"* ]]; then
-    echo "Cloudflare"
-  elif [[ $dns == *"dns.google"* || $dns == *"8.8.8.8"* || $dns == *"2001:4860:4860::8888"* ]]; then
-    echo "Google"
-  else
-    echo "Custom"
   fi
 }
 
@@ -172,10 +103,18 @@ networkmanager_dns_connection() {
   esac
 }
 
+network_manager_running() {
+  systemctl is-active --quiet NetworkManager.service
+}
+
 set_connection_dns() {
   local uuid type
   local ipv4_dns="${1:-}"
   local ipv6_dns="${2:-}"
+
+  # Install chroot and similar environments have no NetworkManager; skip the
+  # per-connection loop there. If NM is running, let nmcli failures surface.
+  network_manager_running || return 0
 
   while IFS=: read -r uuid type; do
     [[ -n $uuid ]] || continue
@@ -192,6 +131,8 @@ set_connection_dns() {
 
 clear_connection_dns() {
   local uuid type
+
+  network_manager_running || return 0
 
   while IFS=: read -r uuid type; do
     [[ -n $uuid ]] || continue
@@ -220,29 +161,54 @@ reapply_active_dns_connections() {
 }
 
 reload_dns_stack() {
-  if systemctl is-active --quiet NetworkManager.service 2>/dev/null; then
+  if network_manager_running; then
     # Load the updated NetworkManager config first, then reapply the active
     # profiles. A single conf,dns-full reload here pushes the old active DNS
     # settings, making the shell toggle appear one selection behind.
-    nmcli general reload conf >/dev/null 2>&1 || systemctl reload NetworkManager.service 2>/dev/null || true
+    nmcli general reload conf >/dev/null 2>&1 || systemctl reload NetworkManager.service
     reapply_active_dns_connections
   fi
 
   systemctl reload systemd-resolved.service 2>/dev/null || systemctl restart systemd-resolved.service
 
-  if systemctl is-active --quiet NetworkManager.service 2>/dev/null; then
+  if network_manager_running; then
     # A resolved reload/restart can leave per-link DNS stale or empty; ask
     # NetworkManager to publish DNS after resolved has reread its config.
     nmcli general reload dns-full >/dev/null 2>&1 || true
   fi
 }
 
+write_resolved_conf() {
+  local dns_line="${1:-}"
+  local dot="${2:-}"
+  local fallback="${3:-}"
+
+  {
+    echo "[Resolve]"
+    [[ -n $dns_line ]] && echo "DNS=$dns_line"
+    [[ -n $fallback ]] && echo "FallbackDNS=$fallback"
+    [[ -n $dot ]] && echo "DNSOverTLS=$dot"
+  } | tee "$RESOLVED_CONF" >/dev/null
+}
+
+apply_named_provider() {
+  local provider="$1"
+  local fallback=""
+
+  write_networkmanager_dns "$(dns_provider_nm_servers "$provider")"
+  set_connection_dns "$(dns_provider_ipv4 "$provider")" "$(dns_provider_ipv6 "$provider")"
+  if ! dns_omit_fallback "$provider"; then
+    fallback=$QUAD9_FALLBACK
+  fi
+  write_resolved_conf "$(dns_provider_resolved "$provider")" "$(dns_provider_dot "$provider")" "$fallback"
+}
+
 usage() {
-  echo "Usage: omarchy-dns [Cloudflare|Google|DHCP|Custom]" >&2
+  echo "Usage: omarchy-dns [Cloudflare|Families|Security|Google|DHCP|Custom]" >&2
 }
 
 if (( $# == 0 )); then
-  current_dns_provider
+  dns_detect_provider
   exit 0
 fi
 
@@ -251,43 +217,31 @@ if (( $# > 1 )); then
   exit 1
 fi
 
-if ! provider=$(provider_from_arg "$1"); then
+if ! provider=$(dns_provider_from_arg "$1"); then
   usage
+  exit 1
+fi
+
+# Refuse before elevation so a locked child install does not prompt for the
+# parent password only to say no. The parent command sets
+# OMARCHY_PARENT_DNS_APPLY=1 after it already holds root. The same check runs
+# again in the privileged half, so a root caller without that flag is refused.
+if dns_locked && [[ ${OMARCHY_PARENT_DNS_APPLY:-} != 1 ]]; then
+  dns_lock_message
   exit 1
 fi
 
 require_root "$provider"
 
 case "$provider" in
-Cloudflare)
-  write_networkmanager_dns "1.1.1.1,1.0.0.1,2606:4700:4700::1111,2606:4700:4700::1001"
-  set_connection_dns "1.1.1.1 1.0.0.1" "2606:4700:4700::1111 2606:4700:4700::1001"
-  tee /etc/systemd/resolved.conf >/dev/null <<'EOF'
-[Resolve]
-DNS=1.1.1.1#cloudflare-dns.com 1.0.0.1#cloudflare-dns.com 2606:4700:4700::1111#cloudflare-dns.com 2606:4700:4700::1001#cloudflare-dns.com
-FallbackDNS=9.9.9.9#dns.quad9.net 149.112.112.112#dns.quad9.net 2620:fe::fe#dns.quad9.net 2620:fe::9#dns.quad9.net
-DNSOverTLS=opportunistic
-EOF
-  ;;
-
-Google)
-  write_networkmanager_dns "8.8.8.8,8.8.4.4,2001:4860:4860::8888,2001:4860:4860::8844"
-  set_connection_dns "8.8.8.8 8.8.4.4" "2001:4860:4860::8888 2001:4860:4860::8844"
-  tee /etc/systemd/resolved.conf >/dev/null <<'EOF'
-[Resolve]
-DNS=8.8.8.8#dns.google 8.8.4.4#dns.google 2001:4860:4860::8888#dns.google 2001:4860:4860::8844#dns.google
-FallbackDNS=9.9.9.9#dns.quad9.net 149.112.112.112#dns.quad9.net 2620:fe::fe#dns.quad9.net 2620:fe::9#dns.quad9.net
-DNSOverTLS=opportunistic
-EOF
+Cloudflare|Families|Security|Google)
+  apply_named_provider "$provider"
   ;;
 
 DHCP)
   clear_networkmanager_dns
   clear_connection_dns
-  tee /etc/systemd/resolved.conf >/dev/null <<'EOF'
-[Resolve]
-DNSOverTLS=no
-EOF
+  write_resolved_conf "" no ""
   ;;
 
 Custom)
@@ -305,14 +259,14 @@ Custom)
   split_dns_servers "$dns_servers"
   write_networkmanager_dns "$dns_servers"
   set_connection_dns "$ipv4_dns" "$ipv6_dns"
+  fallback=""
+  if ! dns_omit_fallback Custom; then
+    fallback=$QUAD9_FALLBACK
+  fi
   # omarchy:heredoc-expands paths=none -- $dns_servers is a normalized,
   # single-line DNS server list; the //,/ turns its comma separators into the
   # spaces resolved.conf wants. It is written as data, not a path or command.
-  tee /etc/systemd/resolved.conf >/dev/null <<EOF
-[Resolve]
-DNS=${dns_servers//,/ }
-FallbackDNS=9.9.9.9#dns.quad9.net 149.112.112.112#dns.quad9.net 2620:fe::fe#dns.quad9.net 2620:fe::9#dns.quad9.net
-EOF
+  write_resolved_conf "${dns_servers//,/ }" "" "$fallback"
   ;;
 esac
 

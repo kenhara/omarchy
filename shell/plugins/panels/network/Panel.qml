@@ -75,6 +75,7 @@ Panel {
   property bool wifiStationAvailable: false
   property string dnsProvider: ""
   property string pendingDnsProvider: ""
+  property bool dnsLocked: false
   // Wi-Fi band state from `omarchy-network-band`. `bandCurrent` is the band
   // the radio is actually on; `bandSelected` is the pinned choice ("auto" when
   // nothing is pinned), and the two differ whenever Auto is in effect.
@@ -241,6 +242,7 @@ Panel {
   }
 
   function activateDns() {
+    if (dnsLocked) return
     if (dnsIndex < 0 || dnsIndex >= dnsProviders.length) return
     setDns(dnsProviders[dnsIndex])
   }
@@ -530,6 +532,7 @@ Panel {
       dnsProc.command = ["bash", "-c", root.dnsCommand("")]
       dnsProc.running = true
     }
+    if (!dnsLockProc.running) dnsLockProc.running = true
     if (!bandProc.running) {
       bandProc.command = ["omarchy-network-band"]
       bandProc.running = true
@@ -720,7 +723,7 @@ Panel {
   }
 
   function setDns(provider) {
-    if (!root.bar || !provider || actionProc.running) return
+    if (root.dnsLocked || !root.bar || !provider || actionProc.running) return
 
     if (provider === "Custom") {
       var launcher = "omarchy-launch-floating-terminal-with-presentation"
@@ -896,6 +899,12 @@ Panel {
       waitForEnd: true
       onStreamFinished: root.updateDns(text)
     }
+  }
+
+  Process {
+    id: dnsLockProc
+    command: ["omarchy-parent-dns", "locked"]
+    onExited: function(exitCode) { root.dnsLocked = (exitCode === 0) }
   }
 
   Process {
@@ -1522,13 +1531,33 @@ Panel {
         spacing: Style.space(10)
 
         PanelSectionHeader {
-          text: "DNS PROVIDER"
+          text: {
+            if (root.dnsLocked) return "FAMILY DNS"
+            if (root.dnsProvider === "Families" || root.dnsProvider === "Security")
+              return "DNS PROVIDER: " + root.dnsProvider.toUpperCase()
+            return "DNS PROVIDER"
+          }
           foreground: root.bar.foreground
           fontFamily: root.bar.fontFamily
         }
 
+        Text {
+          visible: root.dnsLocked
+          width: parent.width
+          text: root.dnsProvider === "Security"
+            ? "Locked · malware only. A parent can change this with omarchy-parent dns."
+            : "Locked · malware + adult. A parent can change this with omarchy-parent dns."
+          textFormat: Text.PlainText
+          wrapMode: Text.WordWrap
+          color: root.bar.foreground
+          opacity: 0.7
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.bodySmall
+        }
+
         Row {
           id: dnsRow
+          visible: !root.dnsLocked
           width: parent.width
           spacing: Style.space(6)
 

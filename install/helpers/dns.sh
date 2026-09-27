@@ -153,7 +153,9 @@ dns_mode() {
 }
 
 dns_is_child() {
-  omarchy-profile-child
+  local profile_file="${OMARCHY_PROFILE_FILE:-/etc/omarchy/profile}"
+  [[ -f $profile_file ]] || return 1
+  [[ $(<"$profile_file") == child ]]
 }
 
 dns_locked() {
@@ -166,6 +168,31 @@ dns_omit_fallback() {
   case "${1:-}" in
     Families|Security) return 0 ;;
     *) return 1 ;;
+  esac
+}
+
+# When true, resolved.conf must pin FallbackDNS to filtered servers (or the
+# custom list). Omitting the key leaves systemd-resolved's compiled-in
+# unfiltered defaults in force.
+dns_provider_fallback() {
+  local provider="$1"
+  local custom_servers="${2:-}"
+
+  if ! dns_omit_fallback "$provider"; then
+    echo "$QUAD9_FALLBACK"
+    return 0
+  fi
+
+  case "$provider" in
+    Custom)
+      [[ -n $custom_servers ]] && printf '%s\n' "${custom_servers//,/ }"
+      ;;
+    DHCP)
+      return 1
+      ;;
+    *)
+      dns_provider_resolved "$provider"
+      ;;
   esac
 }
 

@@ -197,9 +197,7 @@ apply_named_provider() {
 
   write_networkmanager_dns "$(dns_provider_nm_servers "$provider")"
   set_connection_dns "$(dns_provider_ipv4 "$provider")" "$(dns_provider_ipv6 "$provider")"
-  if ! dns_omit_fallback "$provider"; then
-    fallback=$QUAD9_FALLBACK
-  fi
+  fallback=$(dns_provider_fallback "$provider")
   write_resolved_conf "$(dns_provider_resolved "$provider")" "$(dns_provider_dot "$provider")" "$fallback"
 }
 
@@ -259,10 +257,7 @@ Custom)
   split_dns_servers "$dns_servers"
   write_networkmanager_dns "$dns_servers"
   set_connection_dns "$ipv4_dns" "$ipv6_dns"
-  fallback=""
-  if ! dns_omit_fallback Custom; then
-    fallback=$QUAD9_FALLBACK
-  fi
+  fallback=$(dns_provider_fallback Custom "$dns_servers")
   # omarchy:heredoc-expands paths=none -- $dns_servers is a normalized,
   # single-line DNS server list; the //,/ turns its comma separators into the
   # spaces resolved.conf wants. It is written as data, not a path or command.

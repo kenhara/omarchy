@@ -93,6 +93,10 @@ locked_out=$(OMARCHY_PATH="$ROOT" OMARCHY_PROFILE_FILE="$OMARCHY_PROFILE_FILE" \
   OMARCHY_PARENT_CONF="$OMARCHY_PARENT_CONF" bash "$parent_dns" locked) ||
   fail "omarchy-parent-dns locked exits 0 when locked"
 [[ $locked_out == yes ]] || fail "omarchy-parent-dns locked prints yes when locked" "$locked_out"
+locked_out=$(OMARCHY_PATH="$ROOT" OMARCHY_PROFILE_FILE="$OMARCHY_PROFILE_FILE" \
+  OMARCHY_PARENT_CONF="$OMARCHY_PARENT_CONF" PATH="/usr/bin:/bin" bash "$parent_dns" locked) ||
+  fail "omarchy-parent-dns locked must not depend on omarchy-profile-child being on PATH"
+[[ $locked_out == yes ]] || fail "omarchy-parent-dns locked prints yes without omarchy-profile-child on PATH" "$locked_out"
 pass "omarchy-parent-dns status and locked answer without a password"
 
 [[ $(dns_provider_from_arg families) == "Families" ]] || fail "families maps to Families"
@@ -116,7 +120,13 @@ if dns_omit_fallback Cloudflare; then
   fail "an adult Cloudflare setting still has the Quad9 fallback"
 fi
 dns_omit_fallback Families || fail "adult Families still omits the unfiltered fallback"
-pass "child profiles and Families/Security omit the unfiltered Quad9 fallback"
+[[ $(dns_provider_fallback Families) == "$(dns_provider_resolved Families)" ]] ||
+  fail "Families fallback must mirror the filtered resolver line"
+[[ $(dns_provider_fallback Security) == "$(dns_provider_resolved Security)" ]] ||
+  fail "Security fallback must mirror the filtered resolver line"
+[[ $(dns_provider_fallback Cloudflare) == "$QUAD9_FALLBACK" ]] ||
+  fail "adult Cloudflare still uses the Quad9 fallback"
+pass "filtered modes pin FallbackDNS to the same provider; adults keep Quad9"
 
 printf 'child\n' >"$OMARCHY_PROFILE_FILE"
 rm -f "$OMARCHY_PARENT_CONF"
@@ -472,10 +482,7 @@ EOF
     } >"$RESOLVED_CONF"
   }
   write_networkmanager_dns "$(dns_provider_nm_servers Families)"
-  fallback=""
-  if ! dns_omit_fallback Families; then
-    fallback=$QUAD9_FALLBACK
-  fi
+  fallback=$(dns_provider_fallback Families)
   write_resolved_conf "$(dns_provider_resolved Families)" "$(dns_provider_dot Families)" "$fallback"
 ' _ "$helper" "$NM_DNS_CONF" "$RESOLVED_CONF"
 
@@ -484,8 +491,10 @@ grep -Fq 'servers=1.1.1.3,1.0.0.3,2606:4700:4700::1113,2606:4700:4700::1003' "$N
 grep -Fq '1.1.1.3#family.cloudflare-dns.com' "$RESOLVED_CONF" ||
   fail "Families writes the family DoT name into resolved"
 grep -Fq 'DNSOverTLS=yes' "$RESOLVED_CONF" || fail "Families enables strict DNS-over-TLS"
-if grep -q FallbackDNS "$RESOLVED_CONF"; then
-  fail "Families must not write an unfiltered FallbackDNS"
+grep -Fq 'FallbackDNS=1.1.1.3#family.cloudflare-dns.com' "$RESOLVED_CONF" ||
+  fail "Families must pin FallbackDNS to the filtered resolver"
+if grep -Fq '9.9.9.9#dns.quad9.net' "$RESOLVED_CONF"; then
+  fail "Families must not write the unfiltered Quad9 fallback"
 fi
 [[ $(dns_detect_provider) == "Families" ]] || fail "the files just written detect as Families"
-pass "Families writes strict DoT without a Quad9 fallback"
+pass "Families writes strict DoT with a filtered FallbackDNS"

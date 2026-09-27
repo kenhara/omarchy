@@ -139,7 +139,7 @@ Panel {
   readonly property bool speedHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === speedHeaderIndex
   readonly property bool toggleHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === toggleHeaderIndex
   readonly property string toggleHint: Networking.wifiEnabled ? "Turn Wi-Fi off" : "Turn Wi-Fi on"
-  readonly property var dnsProviders: ["DHCP", "Cloudflare", "Google", "Custom"]
+  readonly property var dnsProviders: ["DHCP", "Cloudflare", "Families", "Security", "Google", "Custom"]
   property int dnsIndex: 0
   // ["2.4", "5", ...], or empty when there is nothing to choose between.
   // Wi-Fi only: on Ethernet the band of a secondary radio is not what the
@@ -1561,39 +1561,22 @@ Panel {
           width: parent.width
           spacing: Style.space(6)
 
-          readonly property int count: 4
+          readonly property int count: root.dnsProviders.length
           readonly property real cellWidth: (width - spacing * (count - 1)) / count
 
-          DnsProviderPill {
-            provider: "DHCP"
-            index: 0
-            tooltipText: "Use DNS from DHCP"
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
-          }
-
-          DnsProviderPill {
-            provider: "Cloudflare"
-            index: 1
-            tooltipText: "Set DNS to Cloudflare"
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
-          }
-
-          DnsProviderPill {
-            provider: "Google"
-            index: 2
-            tooltipText: "Set DNS to Google"
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
-          }
-
-          DnsProviderPill {
-            provider: "Custom"
-            index: 3
-            tooltipText: "Set custom DNS servers"
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
+          Repeater {
+            model: root.dnsProviders
+            delegate: DnsProviderPill {
+              provider: modelData
+              index: index
+              tooltipText: {
+                if (provider === "DHCP") return "Use DNS from DHCP"
+                if (provider === "Custom") return "Set custom DNS servers"
+                return "Set DNS to " + provider
+              }
+              width: dnsRow.cellWidth
+              onClicked: root.setDns(provider)
+            }
           }
         }
       }

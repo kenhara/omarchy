@@ -106,10 +106,20 @@ pass "omarchy-parent-dns status and locked answer without a password"
 [[ $(dns_provider_dot Cloudflare) == "opportunistic" ]] || fail "Cloudflare stays opportunistic"
 [[ $(dns_provider_resolved Families) == *"1.1.1.3#family.cloudflare-dns.com"* ]] ||
   fail "Families resolved line pins family.cloudflare-dns.com"
+[[ $(dns_provider_resolved Families) == *"1.0.0.3#family.cloudflare-dns.com"* ]] ||
+  fail "Families resolved line includes the second family IPv4"
+[[ $(dns_provider_resolved Families) == *"2606:4700:4700::1113#family.cloudflare-dns.com"* ]] ||
+  fail "Families resolved line includes family IPv6"
+[[ $(dns_provider_resolved Families) == *"2606:4700:4700::1003#family.cloudflare-dns.com"* ]] ||
+  fail "Families resolved line includes the second family IPv6"
 [[ $(dns_provider_resolved Security) == *"1.1.1.2#security.cloudflare-dns.com"* ]] ||
   fail "Security resolved line pins security.cloudflare-dns.com"
-[[ $(dns_provider_nm_servers Families) == *"1.1.1.3"* ]] || fail "Families NM servers include 1.1.1.3"
-[[ $(dns_provider_ipv6 Security) == *"2606:4700:4700::1112"* ]] || fail "Security includes the malware IPv6 address"
+[[ $(dns_provider_resolved Security) == *"1.0.0.2#security.cloudflare-dns.com"* ]] ||
+  fail "Security resolved line includes the second security IPv4"
+[[ $(dns_provider_nm_servers Families) == *"1.1.1.3"* && $(dns_provider_nm_servers Families) == *"1.0.0.3"* ]] ||
+  fail "Families NM servers include both family IPv4 addresses"
+[[ $(dns_provider_ipv6 Security) == *"2606:4700:4700::1112"* && $(dns_provider_ipv6 Security) == *"2606:4700:4700::1002"* ]] ||
+  fail "Security includes both malware IPv6 addresses"
 pass "Families and Security provider strings match Cloudflare's published anycast"
 
 printf 'child\n' >"$OMARCHY_PROFILE_FILE"
@@ -141,8 +151,11 @@ pass "document_dns describes off as stop-enforcing, not a kid-unlocked picker"
 grep -Fq 'run_logged "$OMARCHY_INSTALL/config/dns.sh"' "$ROOT/install/config/all.sh" || fail "family DNS is wired into system setup after the parental posture"
 grep -Fq 'omarchy-parent-dns on' "$ROOT/install/config/dns.sh" || fail "the install leaf turns family DNS on"
 grep -Fq 'omarchy-parent-dns on' "$ROOT/bin/omarchy-provision-owner" || fail "deferred child provisioning turns family DNS on"
-[[ ! -e $ROOT/migrations/1790416966.sh ]] || fail "family DNS has no migration; install and provision-owner are the only writers"
-pass "parent-dns apply is wired at install and first boot, without a migration"
+# The lock itself is written at install and first boot. The later egress-filter
+# + DoH-pin migration reapplies that lock on machines that already had it.
+grep -Fq 'family DNS egress filter' "$ROOT/migrations/1790549305.sh" ||
+  fail "existing child installs migrate onto the egress filter and DoH pin"
+pass "parent-dns apply is wired at install, first boot, and the filter migration"
 
 menu="$ROOT/default/omarchy/omarchy-menu.jsonc"
 grep -q '"setup.network.dns.families"' "$menu" || fail "the menu offers Families"
@@ -162,8 +175,8 @@ dispatcher="$ROOT/etc/NetworkManager/dispatcher.d/10-omarchy-parent-dns"
 [[ -f $dispatcher ]] || fail "the NetworkManager dispatcher ships"
 case_arm=$(grep -E 'up\|dhcp4-change\|dhcp6-change' "$dispatcher")
 [[ $case_arm == *reapply* ]] && fail "the dispatcher must not handle reapply, which would loop on its own fix"
-if grep -E '^[[:space:]]*(omarchy-parent-dns apply|systemctl|conf_set|browser_policy)' "$dispatcher"; then
-  fail "the dispatcher must only fix the one connection, not apply/resolved/browser policy"
+if grep -E '^[[:space:]]*(omarchy-parent-dns apply|systemctl|conf_set|browser_policy|dns_filter)' "$dispatcher"; then
+  fail "the dispatcher must only fix the one connection, not apply/resolved/browser policy/filter"
 fi
 grep -Fq 'omarchy-parent-dns fix-connection' "$dispatcher" ||
   fail "the dispatcher calls fix-connection for the upped UUID"
@@ -233,9 +246,17 @@ require_root_fn=$(sed -n '/^require_root() {/,/^}/p' "$dns")
 as_root_fn=$(<"$ROOT/install/helpers/as-root.sh")
 [[ $as_root_fn == *'if (( EUID == 0 )); then'*'"$@"'* ]] ||
   fail "as_root does not re-prompt when the parent command already holds root"
-if grep -nE '^[[:space:]]*trap ' "$ROOT/install/helpers/parent.sh" "$ROOT/install/helpers/dns.sh" "$ROOT/install/helpers/browser-policy.sh" | grep -v 'trap '"'"'rm -f'; then
+if grep -nE '^[[:space:]]*trap ' "$ROOT/install/helpers/parent.sh" "$ROOT/install/helpers/dns.sh" "$ROOT/install/helpers/browser-policy.sh" "$ROOT/install/helpers/parent-dns-filter.sh" | grep -v 'trap '"'"'rm -f'; then
   fail "sourced helpers must not install an EXIT trap that runs sudo -k"
 fi
+grep -Fq 'browser_policy_apply_doh families' "$parent_dns" ||
+  fail "on pins browser DoH to the family endpoint"
+grep -Fq 'browser_policy_apply_doh security' "$parent_dns" ||
+  fail "security pins browser DoH to the security endpoint"
+grep -Fq 'dns_filter_apply families' "$parent_dns" ||
+  fail "on loads the family DNS egress filter"
+grep -Fq 'dns_filter_clear' "$parent_dns" ||
+  fail "off removes the family DNS egress filter"
 pass "the parent-dns apply path has no nested sudo"
 
 if (( EUID != 0 )); then
@@ -319,6 +340,8 @@ mkdir -p "$sudo_probe/bin" "$sudo_probe/localbin"
 : >"$sudo_probe/log"
 printf '#!/bin/bash\nprintf "sudo %s\\n" "$*" >>%q\nexit 1\n' "$sudo_probe/log" >"$sudo_probe/bin/sudo"
 printf '#!/bin/bash\nprintf "pkexec %s\\n" "$*" >>%q\nexit 1\n' "$sudo_probe/log" >"$sudo_probe/bin/pkexec"
+printf '#!/bin/bash\nprintf "nft %%s\\n" "$*" >>%q\nexit 0\n' "$sudo_probe/nft.log" >"$sudo_probe/bin/nft"
+printf '#!/bin/bash\nprintf "systemctl %%s\\n" "$*" >>%q\nif [[ $1 == is-active ]]; then\n  exit 1\nfi\nexit 0\n' "$sudo_probe/systemctl.log" >"$sudo_probe/bin/systemctl"
 cp "$ROOT/bin/omarchy-profile-child" "$sudo_probe/localbin/omarchy-profile-child"
 cat >"$sudo_probe/localbin/systemctl" <<'SH'
 #!/bin/bash
@@ -343,6 +366,8 @@ run_parent_dns_as_root() {
     OMARCHY_PARENT_CONF="$sudo_probe/parent.conf" \
     OMARCHY_NM_DNS_CONF="$sudo_probe/20-omarchy-dns.conf" \
     OMARCHY_RESOLVED_CONF="$sudo_probe/resolved.conf" \
+    OMARCHY_PARENT_DNS_NFT_FILE="$sudo_probe/parent-dns-filter.nft" \
+    OMARCHY_PARENT_DNS_FILTER_UNIT="$sudo_probe/omarchy-parent-dns-filter.service" \
     PATH="$sudo_probe/bin:$ROOT/bin:/usr/bin:/bin" \
     bash -c '
       set -euo pipefail
@@ -493,6 +518,10 @@ grep -Fq '1.1.1.3#family.cloudflare-dns.com' "$RESOLVED_CONF" ||
 grep -Fq 'DNSOverTLS=yes' "$RESOLVED_CONF" || fail "Families enables strict DNS-over-TLS"
 grep -Fq 'FallbackDNS=1.1.1.3#family.cloudflare-dns.com' "$RESOLVED_CONF" ||
   fail "Families must pin FallbackDNS to the filtered resolver"
+grep -Fq '1.0.0.3#family.cloudflare-dns.com' "$RESOLVED_CONF" ||
+  fail "Families must pin the second family IPv4 in DNS and FallbackDNS"
+grep -Fq '2606:4700:4700::1113#family.cloudflare-dns.com' "$RESOLVED_CONF" ||
+  fail "Families must pin family IPv6 in DNS and FallbackDNS"
 if grep -Fq '9.9.9.9#dns.quad9.net' "$RESOLVED_CONF"; then
   fail "Families must not write the unfiltered Quad9 fallback"
 fi

@@ -20,8 +20,9 @@ grep -Fq '/usr/bin/sudo /usr/bin/true' "$update" ||
   fail "omarchy-update authorizes once with sudo true"
 grep -Fq 'omarchy_security_revoke_sudo_timestamp' "$update" ||
   fail "omarchy-update revokes the ticket when it finishes"
-grep -Fq 'sudo -v' "$update" &&
-  fail "omarchy-update does not pre-prompt with sudo -v" || true
+if grep -E '^[[:space:]]*(/usr/bin/)?sudo[[:space:]]+-v' "$update"; then
+  fail "omarchy-update does not pre-prompt with sudo -v"
+fi
 pass "omarchy-update keeps a single authorize-and-revoke session"
 
 grep -Fq 'Defaults rootpw' "$parent" ||

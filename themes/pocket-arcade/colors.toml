@@ -4,7 +4,6 @@
 accent = "#db5b78"
 active_border_color = "#db5b78"
 active_tab_background = "#1d2948"
-cursor = "#fff7f0"
 foreground = "#eee7e4"
 background = "#0b1024"
 selection_foreground = "#0b1024"

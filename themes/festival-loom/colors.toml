@@ -2,7 +2,6 @@
 accent = "#ad285b"
 active_border_color = "#ad285b"
 active_tab_background = "#e8c8b0"
-cursor = "#1e1726"
 foreground = "#342b3d"
 background = "#fff0dc"
 selection_foreground = "#fff0dc"

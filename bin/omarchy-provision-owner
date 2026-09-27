@@ -844,6 +844,11 @@ configure_login() {
   # one-shot service removes the drop-in so later boots use the normal SDDM
   # login and the disk isn't left permanently open.
   encrypted_install || install_autologin_once_cleanup
+
+  if $CHILD_INSTALL; then
+    source "$OMARCHY_PATH/install/helpers/child-login-labels.sh"
+    omarchy_apply_child_login_labels "$username"
+  fi
 }
 
 # Install a self-removing service that makes the autologin last exactly one

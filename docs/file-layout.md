@@ -326,7 +326,10 @@ Logging goes to `/var/log/omarchy-install.log` via
 The package lists the ISO pacstraps live at `install/omarchy-base.packages`
 and `install/omarchy-other.packages`, plus `install/omarchy-child.packages`
 for what a child install adds on top; the ISO builder also reads them when
-constructing its offline mirror.
+constructing its offline mirror. Child-only webapp launchers live in
+`install/omarchy-child-applications/` and are copied by
+`omarchy-refresh-applications` only when `omarchy-profile-child` is true, so
+they never land in `/etc/skel` for a default install.
 
 ## Explicit resync (`omarchy-reinstall-configs`)
 

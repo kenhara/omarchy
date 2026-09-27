@@ -256,7 +256,7 @@
   "install.gaming.geforce-now": {"icon":"󰢹","label":"NVIDIA GeForce NOW","disabled":"flatpak info com.nvidia.geforcenow","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-gaming-geforce-now"},
   "install.gaming.xbox-cloud": {"icon":"","label":"Xbox Cloud Gaming","disabled":"[[ -f \"$HOME/.local/share/applications/Xbox Cloud Gaming.desktop\" ]]","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-gaming-xbox-cloud"},
   "install.gaming.xbox-controllers": {"icon":"󰂯","label":"Xbox Controllers","disabled":"omarchy-pkg-present xpadneo-dkms","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-gaming-xbox-controllers"},
-  "install.gaming.battlenet": {"icon":"","label":"Battle.net","disabled":"[[ -d $HOME/Games/battlenet ]]","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-gaming-battlenet"},
+  "install.gaming.battlenet": {"icon":"","label":"Battle.net","when":"! omarchy-profile-child","disabled":"[[ -d $HOME/Games/battlenet ]]","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-gaming-battlenet"},
   "install.gaming.lutris": {"icon":"","label":"Lutris","disabled":"omarchy-pkg-present lutris","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-gaming-lutris"},
   "install.gaming.heroic": {"icon":"󱓟","label":"Heroic (Epic Games)","disabled":"omarchy-pkg-present heroic-games-launcher-bin","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-gaming-heroic"},
   "install.gaming.retro-launcher": {"icon":"󰯉","label":"RetroArch Game Launcher","action":"omarchy-games-retro-install"},

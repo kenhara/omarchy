@@ -22,6 +22,9 @@ Item {
   property bool powerSaverActive: false
   property string passwordText: ""
   property bool syncingPasswordText: false
+  property string loginDisplayName: ""
+  property string loginPasswordHint: ""
+  readonly property bool showLoginLabels: loginDisplayName.length > 0
 
   readonly property string placeholderText: "Enter Password"
   readonly property int fieldWidth: 381
@@ -135,11 +138,25 @@ Item {
       onPositionChanged: root.wakeRequested()
     }
 
+    Column {
+      anchors.centerIn: parent
+      spacing: 14
+
+      Text {
+        visible: root.showLoginLabels
+        width: root.fieldWidth
+        text: root.loginDisplayName
+        color: Color.lock.text
+        font.family: Style.font.family
+        font.pixelSize: Math.round(Style.font.heading * 1.05)
+        horizontalAlignment: Text.AlignHCenter
+        elide: Text.ElideRight
+      }
+
     BorderSurface {
       id: inputField
       width: root.fieldWidth
       height: root.fieldHeight
-      anchors.centerIn: parent
       color: Color.lock.background
       borderSpec: root.inputBorderSpec
       radius: Style.cornerRadius
@@ -229,6 +246,18 @@ Item {
         font.pixelSize: Math.round(root.fieldFontSize * 1.1)
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
+      }
+    }
+
+      Text {
+        visible: root.showLoginLabels
+        width: root.fieldWidth
+        text: root.loginPasswordHint
+        color: Color.lock.placeholder
+        font.family: Style.font.family
+        font.pixelSize: Math.round(Style.font.body * 0.95)
+        horizontalAlignment: Text.AlignHCenter
+        wrapMode: Text.WordWrap
       }
     }
   }

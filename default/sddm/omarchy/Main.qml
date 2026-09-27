@@ -9,6 +9,7 @@ Rectangle {
 
   property string currentUser: userModel.lastUser
   property bool loginFailed: false
+  property bool showChildLoginLabels: (config.accountDisplayName || "").length > 0
   property int sessionIndex: {
     for (var i = 0; i < sessionModel.rowCount(); i++) {
       var name = (sessionModel.data(sessionModel.index(i, 0), Qt.DisplayRole) || "").toString()
@@ -41,6 +42,30 @@ Rectangle {
       height: sourceSize.width > 0 ? Math.round(width * sourceSize.height / sourceSize.width) : 0
       fillMode: Image.PreserveAspectFit
       anchors.horizontalCenter: parent.horizontalCenter
+    }
+
+    Column {
+      visible: root.showChildLoginLabels
+      spacing: 8
+      anchors.horizontalCenter: parent.horizontalCenter
+
+      Text {
+        text: config.accountDisplayName || ""
+        color: "#a9b1d6"
+        font.family: "JetBrainsMono Nerd Font"
+        font.pixelSize: 20
+        horizontalAlignment: Text.AlignHCenter
+        anchors.horizontalCenter: parent.horizontalCenter
+      }
+
+      Text {
+        text: config.passwordHint || ""
+        color: "#565f89"
+        font.family: "JetBrainsMono Nerd Font"
+        font.pixelSize: 13
+        horizontalAlignment: Text.AlignHCenter
+        anchors.horizontalCenter: parent.horizontalCenter
+      }
     }
 
     Row {

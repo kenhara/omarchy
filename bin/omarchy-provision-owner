@@ -816,6 +816,10 @@ create_user() {
   if $CHILD_INSTALL; then
     omarchy-parent apply --user "$username"
     omarchy-parent-dns on
+    # The daily screen time limit a child install ships with, the same call
+    # install/config/screen-time.sh makes when the install has a user.
+    omarchy-parent-screen-time on
+    omarchy-parent-screen-time add "$username"
   fi
 }
 

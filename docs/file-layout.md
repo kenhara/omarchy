@@ -368,6 +368,7 @@ return to the packaged default.
 | Runtime tweak that needs `$HOME` or live system state | extend `omarchy-provision-user`, or add a per-user leaf under `install/user/` and wire into `install/user/all.sh` |
 | One-time root-side setup step | `install/config/*.sh` or `install/hardware/*.sh`, wire into `install/config/all.sh` or `install/hardware/all.sh` |
 | Gate something on the install profile (kids mode) | `omarchy-profile-child`; the marker is `/etc/omarchy/profile`, written by `omarchy-apply-system --profile` |
+| A root daemon a child install turns on (e.g. screen time) | the daemon in `bin/`, its unit in `etc/systemd/system/` and its group/dirs in `etc/sysusers.d/` + `etc/tmpfiles.d/` (all ship to `/etc` via `omarchy-settings`), enabled from `install/config/*.sh` behind `omarchy-profile-child`; its own state under `/etc/omarchy-screen-time` and `/var/lib/omarchy-screen-time`, root-only |
 | Record a parent-approved plugin id (child installs) | `omarchy-plugin-approve`; the list is `/etc/omarchy/plugins-parent-approved` |
 | One-time fix for existing installs | `migrations/<unix-timestamp>.sh` |
 | Package-owned path something else may already write | Prefer a path nothing else writes, such as a vendor drop-in under `/usr/lib`. Otherwise the `--overwrite` entry in `bin/omarchy-update-system-pkgs` has to ship a release before the file |

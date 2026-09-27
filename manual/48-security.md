@@ -34,6 +34,20 @@ Two things to know. Omarchy's own admin commands drop the parent-password ticket
 
 Fingerprint unlock still works for the kid at the lock screen, but `sudo` and system prompts keep asking for the parent password, and FIDO2 setup is not offered because it only ever covered those two. Child installs also close the text consoles behind Ctrl+Alt+F2 through F6, so the lock screen is the only way back into a locked session; `sudo omarchy-parent tty on` reopens them.
 
+## Screen time
+
+A child install turns on a daily screen time limit. A small daemon runs as root and counts the minutes the kid's session is actually in use — it does not count while the screen is locked or the session is idle — warns as the budget runs down, and locks the screen when the day is spent, after a short grace period so nobody loses their place mid-sentence. It comes set to an hour on school days and ninety minutes at the weekend, with a bedtime you can switch on. Because it runs as root from a system service, taking the widget out of the bar changes what the kid can see, not what the machine enforces. The lock itself goes through the desktop shell, so a kid who freezes or kills the shell to dodge it gets a few retries and is then logged out instead; unsaved work is lost, which is the price of breaking the shell, and a healthy machine never gets there.
+
+The pill in the bar shows the time left and turns amber, then red, as it runs out; clicking it opens a panel with the day laid out. The parent's controls sit behind a **PIN**, a separate short secret from the parent password: it opens a small dialog for handing out fifteen or sixty minutes, pausing the clock, locking now, or the settings window. The PIN is deliberately cheaper than the parent password because you type it in front of the kid several times a day; it is stored hashed where the kid cannot read it, and it backs off and locks out after wrong guesses.
+
+Everything a kid should not decide for themselves is the parent's, from a terminal, with `sudo omarchy-parent screen-time`:
+
+- `on` and `off` start and stop the enforcement; `status` shows the daemon, the roster and what is left today.
+- `pin set` sets the first PIN (this is a parent's, not something the panel hands to whoever opens it first), and `pin reset` clears a forgotten one so the panel asks for a new one — no old PIN needed, because root can edit the config anyway.
+- `add <account>` and `remove <account>` put an account under a profile or take it out. `grant <account> <minutes>` hands out (or with a negative number takes away) time without the PIN.
+
+In the settings window a parent switches between **Limits** (a budget, warnings and a lock) and **Agreement** (no lock and no rewards — a written agreement in the family's own words, a gentle break nudge, and a place for the kid's own notes), sets the minutes per weekday and the blocked periods, and turns on **earning**: the kid answers math problems (the times tables you pick, optionally division too) to buy extra minutes up to a daily cap. Earning and Agreement mode are off until a parent turns them on. Screen time filters no web and limits no single app on its own; those are separate layers.
+
 ## Passing on a machine you've already used
 
 If you're handing your machine over to someone else, you don't have to reinstall it. Run _Setup > Reset Computer_ in the Omarchy menu, type `reset` to confirm, and reboot. That wipes every user account and everything in `/home`, throws away all the packages and system changes you made since installation, and clears the machine's identity — network connections, host keys, and all. What comes back up is the setup wizard from the first boot, ready for its new owner to enter their own name, password, and encryption password.

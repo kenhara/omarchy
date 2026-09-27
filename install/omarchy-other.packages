@@ -65,7 +65,8 @@ dell-xps13-sidecar-amps
 lsp-plugins-lv2
 
 # T2 MacBook support packages
-apple-bcm-firmware
+# apple-bcm-firmware is gone from arch-mact2; listing it breaks ISO builds.
+# Firmware now comes from apple-bcm-firmware-fetcher on T2 machines at install.
 apple-t2-audio-config
 linux-t2
 linux-t2-headers

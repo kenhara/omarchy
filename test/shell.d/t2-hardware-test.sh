@@ -20,6 +20,12 @@ grep -Fq 'KERNEL_CMDLINE[default]+=" intel_iommu=on iommu=pt pm_async=off mem_sl
   fail "T2 setup leaves optional Touch Bar customization uninstalled"
 ! grep -qx 'tiny-dfr' "$other_packages" ||
   fail "the ISO no longer caches tiny-dfr"
+! grep -qx 'apple-bcm-firmware' "$other_packages" ||
+  fail "the ISO no longer lists apple-bcm-firmware"
+grep -Fq 'apple-bcm-firmware-fetcher' "$fix_t2" ||
+  fail "T2 setup installs the firmware fetcher from arch-mact2"
+! grep -qE '(^|[[:space:]])apple-bcm-firmware($|[[:space:]])' "$fix_t2" ||
+  fail "T2 setup does not install the retired apple-bcm-firmware package"
 pass "fresh T2 setup uses t2bce-compatible suspend, fan, and Touch Bar defaults"
 
 test_tmp=$(mktemp -d)

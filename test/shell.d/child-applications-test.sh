@@ -71,8 +71,8 @@ OMARCHY_PROFILE_FILE="$child_marker" omarchy-refresh-applications
   fail "a child profile drops HEY"
 [[ ! -e "$test_home/.local/share/applications/Google Contacts.desktop" ]] ||
   fail "a child profile drops Google Contacts"
-[[ -f $test_home/.local/share/applications/YouTube.desktop ]] ||
-  fail "a child profile keeps YouTube"
+[[ ! -e $test_home/.local/share/applications/YouTube.desktop ]] ||
+  fail "a child profile drops YouTube"
 [[ -f $test_home/.local/share/applications/foot.desktop ]] ||
   fail "a child profile keeps foot"
 [[ -f "$test_home/.local/share/applications/Khan Academy.desktop" ]] ||

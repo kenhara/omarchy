@@ -6,6 +6,12 @@
 
 set -e
 
+source "$OMARCHY_PATH/install/helpers/child-install.sh"
+child_require_install
+if omarchy-profile-child; then
+  trap child_drop_install_ticket EXIT
+fi
+
 echo "Installing GeForce NOW..."
 omarchy-pkg-add flatpak
 cd /tmp

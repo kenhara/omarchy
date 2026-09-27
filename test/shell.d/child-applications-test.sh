@@ -1,7 +1,8 @@
 #!/bin/bash
 #
 # A child install still copies the adult launcher set from applications/ (and
-# from skel), then omarchy-refresh-applications deletes the hidden names.
+# from skel), then omarchy-refresh-applications adds the kid-only webapps and
+# deletes the hidden names.
 
 set -euo pipefail
 
@@ -51,6 +52,14 @@ OMARCHY_PROFILE_FILE="$adult_marker" omarchy-refresh-applications
   fail "a default profile keeps WhatsApp"
 [[ -f $test_home/.local/share/applications/YouTube.desktop ]] ||
   fail "a default profile keeps YouTube"
+[[ ! -e "$test_home/.local/share/applications/Khan Academy.desktop" ]] ||
+  fail "a default profile does not get Khan Academy"
+[[ ! -e $test_home/.local/share/applications/Scratch.desktop ]] ||
+  fail "a default profile does not get Scratch"
+[[ ! -e $test_home/.local/share/applications/Grokipedia.desktop ]] ||
+  fail "a default profile does not get Grokipedia"
+[[ ! -e $test_home/.local/share/applications/Wikipedia.desktop ]] ||
+  fail "a default profile does not get Wikipedia"
 pass "a default profile keeps the adult launcher set"
 
 OMARCHY_PROFILE_FILE="$child_marker" omarchy-refresh-applications
@@ -60,19 +69,42 @@ OMARCHY_PROFILE_FILE="$child_marker" omarchy-refresh-applications
   fail "a child profile drops Docker"
 [[ ! -e $test_home/.local/share/applications/HEY.desktop ]] ||
   fail "a child profile drops HEY"
-[[ ! -e $test_home/.local/share/applications/Google\ Contacts.desktop ]] ||
+[[ ! -e "$test_home/.local/share/applications/Google Contacts.desktop" ]] ||
   fail "a child profile drops Google Contacts"
-[[ -f $test_home/.local/share/applications/YouTube.desktop ]] ||
-  fail "a child profile keeps YouTube"
+[[ ! -e $test_home/.local/share/applications/YouTube.desktop ]] ||
+  fail "a child profile drops YouTube"
 [[ -f $test_home/.local/share/applications/foot.desktop ]] ||
   fail "a child profile keeps foot"
-pass "a child profile drops the hidden adult launchers"
+[[ -f "$test_home/.local/share/applications/Khan Academy.desktop" ]] ||
+  fail "a child profile gets Khan Academy"
+[[ -f $test_home/.local/share/applications/Scratch.desktop ]] ||
+  fail "a child profile gets Scratch"
+[[ -f $test_home/.local/share/applications/Grokipedia.desktop ]] ||
+  fail "a child profile gets Grokipedia"
+[[ -f $test_home/.local/share/applications/Wikipedia.desktop ]] ||
+  fail "a child profile gets Wikipedia"
+grep -Fq 'https://www.khanacademy.org/' "$test_home/.local/share/applications/Khan Academy.desktop" ||
+  fail "Khan Academy launches the Khan Academy site"
+grep -Fq 'https://scratch.mit.edu/' "$test_home/.local/share/applications/Scratch.desktop" ||
+  fail "Scratch launches the Scratch site"
+grep -Fq 'https://grokipedia.com/' "$test_home/.local/share/applications/Grokipedia.desktop" ||
+  fail "Grokipedia launches grokipedia.com"
+grep -Fq 'https://www.wikipedia.org/' "$test_home/.local/share/applications/Wikipedia.desktop" ||
+  fail "Wikipedia launches wikipedia.org"
+grep -Fq omarchy-launch-webapp "$test_home/.local/share/applications/Khan Academy.desktop" ||
+  fail "child webapps use omarchy-launch-webapp"
+pass "a child profile drops the hidden adult launchers and adds kid webapps"
 
 # Skel already planted WhatsApp. Refresh must delete it, not only skip the copy.
 cp "$ROOT/applications/WhatsApp.desktop" "$test_home/.local/share/applications/WhatsApp.desktop"
+cp "$ROOT/default/applications/battlenet.desktop" "$test_home/.local/share/applications/battlenet.desktop"
 OMARCHY_PROFILE_FILE="$child_marker" omarchy-refresh-applications
 [[ ! -e $test_home/.local/share/applications/WhatsApp.desktop ]] ||
   fail "a child profile removes a WhatsApp launcher that skel planted"
+[[ ! -e $test_home/.local/share/applications/battlenet.desktop ]] ||
+  fail "a child profile removes a Battle.net launcher that was planted"
+[[ -f "$test_home/.local/share/applications/Khan Academy.desktop" ]] ||
+  fail "a child profile still has Khan Academy after hiding planted launchers"
 pass "a child profile removes hidden launchers that skel planted"
 
 grep -Fq 'omarchy-refresh-applications' "$ROOT/bin/omarchy-reinstall-configs" ||

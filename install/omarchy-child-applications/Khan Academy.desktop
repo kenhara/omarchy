@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Name=Khan Academy
+Exec=omarchy-launch-webapp https://www.khanacademy.org/
+Terminal=false
+Type=Application
+Icon=khan-academy
+StartupNotify=true

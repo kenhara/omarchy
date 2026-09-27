@@ -13,8 +13,12 @@ for stub in gtk-update-icon-cache update-desktop-database omarchy-notification-s
   chmod +x "$tmp_dir/bin/$stub"
 done
 
+printf 'default\n' >"$tmp_dir/profile-default"
+export OMARCHY_PATH="$ROOT"
+export OMARCHY_PROFILE_FILE="$tmp_dir/profile-default"
+
 run_install() {
-  HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$PATH" \
+  HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$ROOT/bin:$PATH" \
     "$ROOT/bin/omarchy-webapp-install" "$@"
 }
 
@@ -80,7 +84,7 @@ fi
 STUB
 chmod +x "$tmp_dir/ibin/gum" "$tmp_dir/ibin/curl"
 
-if HOME="$tmp_dir/home" PATH="$tmp_dir/ibin:$PATH" \
+if HOME="$tmp_dir/home" PATH="$tmp_dir/ibin:$ROOT/bin:$PATH" \
   GUM_STUB_COUNT="$tmp_dir/gum-count" \
   "$ROOT/bin/omarchy-webapp-install" >/dev/null 2>&1; then
   fail "interactive webapp install rejects a name containing a slash"

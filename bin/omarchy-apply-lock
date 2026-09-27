@@ -110,6 +110,13 @@ elif [[ -f $sddm_orig ]]; then
   as_root rm -f "$sddm_orig"
 fi
 
+source "${OMARCHY_PATH:-/usr/share/omarchy}/install/helpers/child-login-labels.sh"
+if omarchy-profile-child; then
+  omarchy_apply_child_login_labels "$target_user"
+else
+  omarchy_remove_child_login_labels
+fi
+
 if [[ -x /usr/bin/fprintd-list ]] &&
   /usr/bin/fprintd-list "$target_user" 2>/dev/null | grep -qi finger; then
   echo "Configuring lock screen fingerprint authentication..."

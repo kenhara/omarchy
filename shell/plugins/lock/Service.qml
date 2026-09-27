@@ -29,6 +29,8 @@ Item {
   property int failedAttempts: 0
   property string backgroundPath: ""
   property int backgroundVersion: 0
+  property string childLoginDisplayName: ""
+  property string childLoginPasswordHint: ""
   property string lastEvent: "init"
   property string lastEventAt: ""
   property bool displaysBlank: false
@@ -121,6 +123,25 @@ Item {
     lastEvent = event
     lastEventAt = new Date().toISOString()
     console.log("omarchy lock " + lastEventAt + " " + event)
+  }
+
+  function applyChildLoginConf(text) {
+    var display = ""
+    var hint = ""
+    var lines = String(text || "").split("\n")
+
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i]
+      var eq = line.indexOf("=")
+      if (eq < 0) continue
+      var key = line.slice(0, eq).trim()
+      var value = line.slice(eq + 1)
+      if (key === "display_name") display = value
+      else if (key === "password_hint") hint = value
+    }
+
+    childLoginDisplayName = display
+    childLoginPasswordHint = hint
   }
 
   function resetAuthenticationState() {
@@ -317,6 +338,8 @@ Item {
         displaysBlank: root.screenBlank(lockSurface.screen ? lockSurface.screen.name : "")
         powerSaverActive: root.powerSaverActive
         passwordText: root.enteredPassword
+        loginDisplayName: root.childLoginDisplayName
+        loginPasswordHint: root.childLoginPasswordHint
         onPasswordTextEdited: function(password) { root.enteredPassword = password }
         onSubmitPassword: function(password) { root.submitPassword(password) }
         onClearFailureRequested: root.failureMessage = ""
@@ -557,6 +580,15 @@ Item {
     printErrors: false
     onLoaded: root.passwordPamConfigured = true
     onLoadFailed: root.passwordPamConfigured = false
+    onFileChanged: reload()
+  }
+
+  FileView {
+    path: "/etc/omarchy/child-login.conf"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.applyChildLoginConf(text())
+    onLoadFailed: root.applyChildLoginConf("")
     onFileChanged: reload()
   }
 

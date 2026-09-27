@@ -110,7 +110,7 @@ elif [[ -f $sddm_orig ]]; then
   as_root rm -f "$sddm_orig"
 fi
 
-source "${OMARCHY_PATH:-/usr/share/omarchy}/install/helpers/child-login-labels.sh"
+source "$OMARCHY_PATH/install/helpers/child-login-labels.sh"
 if omarchy-profile-child; then
   omarchy_apply_child_login_labels "$target_user"
 else

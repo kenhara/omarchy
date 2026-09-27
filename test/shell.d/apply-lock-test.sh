@@ -72,9 +72,16 @@ mkdir -p "$poison_bin" "$trusted_root_bin" "$pam_dir"
 
 # The runtime copy pins to this isolated root path. It contains every bare
 # command the exercised helper needs, but deliberately no fprintd-list.
-for helper in cat cp grep rm tee; do
+for helper in cat cp grep rm tee install cut getent; do
   ln -s "$(command -v "$helper")" "$trusted_root_bin/$helper"
 done
+
+# Child login labels live beside the checkout, not at /usr/share/omarchy.
+omarchy_path="$test_tmp/omarchy"
+mkdir -p "$omarchy_path/install/helpers"
+cp "$ROOT/install/helpers/child-login-labels.sh" "$omarchy_path/install/helpers/"
+child_login_conf="$test_tmp/child-login.conf"
+sddm_theme_conf="$test_tmp/theme.conf.user"
 
 # Every variant uses the selected fixture profile, even when its root PATH
 # protection is removed. Never consult the machine's installed child marker.
@@ -177,7 +184,7 @@ done
 
 reset_runtime_files() {
   rm -f "$password_pam" "$fingerprint_pam" "$trusted_uid" "$trusted_args" "$attack_marker" "$attack_args"
-  rm -f "$pam_dir/sddm.omarchy-orig"
+  rm -f "$pam_dir/sddm.omarchy-orig" "$child_login_conf" "$sddm_theme_conf"
   printf '%s\n' "$packaged_sddm" >"$pam_dir/sddm"
 }
 
@@ -185,7 +192,10 @@ run_as_root() {
   local helper="$1" description="$2" profile="${3:-default}" output
 
   if ! output=$(PATH="$poison_bin:/usr/bin:/bin" OMARCHY_INSTALL_USER="$target_user" \
-    OMARCHY_PAM_DIR="$pam_dir" TEST_PROFILE="$profile" \
+    OMARCHY_PATH="$omarchy_path" OMARCHY_PAM_DIR="$pam_dir" \
+    OMARCHY_CHILD_LOGIN_CONF="$child_login_conf" \
+    OMARCHY_SDDM_THEME_CONF_USER="$sddm_theme_conf" \
+    TEST_PROFILE="$profile" \
     "${root_runner[@]}" /bin/bash "$helper" 2>&1); then
     fail "$description" "$output"
   fi

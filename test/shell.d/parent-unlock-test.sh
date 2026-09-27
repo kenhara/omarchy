@@ -109,7 +109,10 @@ SH
 chmod +x "$stub_bin"/*
 
 run_apply_lock() {
-  OMARCHY_INSTALL_USER=kid OMARCHY_PAM_DIR="$pam_dir" PATH="$stub_bin:$PATH" bash "$apply_lock" >/dev/null
+  OMARCHY_PATH="$ROOT" OMARCHY_INSTALL_USER=kid OMARCHY_PAM_DIR="$pam_dir" \
+    OMARCHY_CHILD_LOGIN_CONF="$test_tmp/child-login.conf" \
+    OMARCHY_SDDM_THEME_CONF_USER="$test_tmp/theme.conf.user" \
+    PATH="$stub_bin:$PATH" bash "$apply_lock" >/dev/null
 }
 
 # The packaged SDDM stack as install/login/sddm.sh leaves it: tabs and all.

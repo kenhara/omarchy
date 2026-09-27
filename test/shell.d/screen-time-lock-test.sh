@@ -70,6 +70,7 @@ st_jq -n --arg me "$me" '
   .profiles = {kids: (default_profile
     | .name = "Kids"
     | .budget_minutes = {mon:1,tue:1,wed:1,thu:1,fri:1,sat:1,sun:1}
+    | .blocked_periods = []
     | .warn_minutes = [1]
     | .grace_seconds = 3
     | .relock_seconds = 3)} |

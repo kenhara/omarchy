@@ -263,14 +263,14 @@ reset_sudo
 : >"$OMARCHY_TEST_PACMAN_LOG"
 OMARCHY_PROFILE_FILE="$adult_marker" omarchy-pkg-add example-pkg
 grep -qxF -- '-v' "$sudo_log" && fail "a default pkg-add does not call sudo -v" "$(cat "$sudo_log")"
-[[ $(<"$sudo_log") == "pacman -S --noconfirm --needed example-pkg" ]] ||
+[[ $(<"$sudo_log") == "pacman -S --noconfirm --needed -- example-pkg" ]] ||
   fail "a default pkg-add uses sudo pacman once" "$(cat "$sudo_log")"
 pass "a default pkg-add uses sudo only for pacman"
 
 reset_sudo
 OMARCHY_PROFILE_FILE="$child_marker" omarchy-pkg-add example-pkg
 grep -qxF -- '-v' "$sudo_log" && fail "a child pkg-add does not call sudo -v" "$(cat "$sudo_log")"
-[[ $(<"$sudo_log") == "pacman -S --noconfirm --needed example-pkg" ]] ||
+[[ $(<"$sudo_log") == "pacman -S --noconfirm --needed -- example-pkg" ]] ||
   fail "a child pkg-add asks once via sudo pacman" "$(cat "$sudo_log")"
 (( $(prompt_count) == 1 )) || fail "a child pkg-add prompts once" "$(cat "$prompt_log")"
 pass "a child pkg-add asks once via sudo pacman"

@@ -6,7 +6,7 @@ source "$(dirname "$0")/base-test.sh"
 
 dns="$ROOT/bin/omarchy-dns"
 sudoers_file="$ROOT/etc/sudoers.d/omarchy-dns"
-rule='%wheel ALL=(root) NOPASSWD: /usr/bin/omarchy-dns Cloudflare, /usr/bin/omarchy-dns Google, /usr/bin/omarchy-dns DHCP'
+rule='%wheel ALL=(root) NOPASSWD: /usr/bin/omarchy-dns Cloudflare, /usr/bin/omarchy-dns Families, /usr/bin/omarchy-dns Security, /usr/bin/omarchy-dns Google, /usr/bin/omarchy-dns DHCP'
 
 # Exactly one rule, matched whole. A second line -- or the same command with its
 # arguments dropped, which sudoers reads as "any arguments" -- would widen the
@@ -112,7 +112,7 @@ chmod +x "$stub_bin/pkexec"
 cat >"$stub_bin/sudo" <<'SH'
 #!/bin/bash
 if [[ $1 == -n && $2 == -l ]]; then
-  for granted in ${STUB_GRANTED-Cloudflare Google DHCP}; do
+  for granted in ${STUB_GRANTED-Cloudflare Families Security Google DHCP}; do
     [[ ${!#} == "$granted" ]] || continue
     echo "    Options: !authenticate"
     exit 0
@@ -141,7 +141,10 @@ done
 pass "omarchy-dns elevates the stock providers through sudo, not polkit"
 
 # A dev-linked checkout elevates the packaged path like everyone else, rather
-# than handing sudo a path no rule can name and losing the grant.
+# than handing sudo a path no rule can name and losing the grant. The helper
+# is loaded from OMARCHY_PATH; the exec target is still /usr/bin/omarchy-dns.
+mkdir -p "$test_tmp/checkout/install/helpers"
+cp "$ROOT/install/helpers/dns.sh" "$ROOT/install/helpers/parent.sh" "$test_tmp/checkout/install/helpers/"
 dev_linked=$(OMARCHY_PATH="$test_tmp/checkout" elevation_for Cloudflare)
 [[ $dev_linked == "sudo /usr/bin/omarchy-dns Cloudflare" ]] ||
   fail "omarchy-dns elevates the system install wherever OMARCHY_PATH points" "got: $dev_linked"
@@ -159,3 +162,97 @@ ungranted=$(STUB_GRANTED="" elevation_for Cloudflare)
   fail "omarchy-dns falls back to polkit where the sudoers grant is not installed" "got: $ungranted"
 
 pass "omarchy-dns falls back to polkit wherever the grant does not reach"
+
+for provider in Families Security; do
+  elevation=$(elevation_for "$provider")
+  [[ $elevation == "sudo /usr/bin/omarchy-dns $provider" ]] ||
+    fail "omarchy-dns takes the passwordless sudo grant for $provider without a terminal" "got: $elevation"
+done
+pass "omarchy-dns grants passwordless Families and Security to %wheel"
+
+# A locked child install must refuse before elevation, so the kid is not
+# prompted for the parent password only to be told no.
+lock_tmp=$(mktemp -d)
+printf 'child\n' >"$lock_tmp/profile"
+printf 'dns=on\n' >"$lock_tmp/parent.conf"
+: >"$test_tmp/elevation"
+if OMARCHY_PATH="$ROOT" OMARCHY_PROFILE_FILE="$lock_tmp/profile" \
+  OMARCHY_PARENT_CONF="$lock_tmp/parent.conf" ELEVATION_LOG="$test_tmp/elevation" \
+  PATH="$stub_bin:$ROOT/bin:$PATH" bash "$dns" DHCP </dev/null >/dev/null 2>"$lock_tmp/err"; then
+  rm -rf "$lock_tmp"
+  fail "omarchy-dns refuses DHCP on a locked child install"
+fi
+[[ -s $test_tmp/elevation ]] && {
+  rm -rf "$lock_tmp"
+  fail "omarchy-dns refuses a locked child change before asking for a password" "got: $(<"$test_tmp/elevation")"
+}
+grep -q 'omarchy-parent dns' "$lock_tmp/err" || {
+  rm -rf "$lock_tmp"
+  fail "omarchy-dns tells the caller to use omarchy-parent dns when locked"
+}
+rm -rf "$lock_tmp"
+pass "omarchy-dns refuses locked child changes without elevating"
+
+# The privileged half must refuse the same way. A root caller without
+# OMARCHY_PARENT_DNS_APPLY=1 is not the parent command.
+if (( EUID == 0 )) || unshare --user --map-root-user --mount true 2>/dev/null; then
+  root_lock=$test_tmp/root-lock
+  mkdir -p "$root_lock/localbin"
+  printf 'child\n' >"$root_lock/profile"
+  printf 'dns=on\n' >"$root_lock/parent.conf"
+  cat >"$root_lock/localbin/omarchy-profile-child" <<SH
+#!/bin/bash
+[[ \$(<"\$OMARCHY_PROFILE_FILE") == child ]]
+SH
+  cat >"$root_lock/localbin/systemctl" <<'SH'
+#!/bin/bash
+if [[ $1 == is-active ]]; then
+  exit 1
+fi
+exit 0
+SH
+  chmod +x "$root_lock/localbin"/*
+  set +e
+  unshare --user --map-root-user --mount env \
+    OMARCHY_PATH="$ROOT" \
+    OMARCHY_PROFILE_FILE="$root_lock/profile" \
+    OMARCHY_PARENT_CONF="$root_lock/parent.conf" \
+    OMARCHY_NM_DNS_CONF="$root_lock/nm.conf" \
+    OMARCHY_RESOLVED_CONF="$root_lock/resolved.conf" \
+    PATH="$ROOT/bin:/usr/bin:/bin" \
+    bash -c '
+      set -euo pipefail
+      if [[ -d /usr/local/bin ]]; then
+        mount --bind "'"$root_lock"'/localbin" /usr/local/bin
+      fi
+      bash "'"$dns"'" DHCP </dev/null
+    ' >"$root_lock/out" 2>"$root_lock/err"
+  root_lock_status=$?
+  set -e
+  (( root_lock_status != 0 )) || fail "root omarchy-dns refuses a locked change without OMARCHY_PARENT_DNS_APPLY"
+  grep -q 'omarchy-parent dns' "$root_lock/err" ||
+    fail "root omarchy-dns tells the caller to use omarchy-parent dns when locked" "$(<"$root_lock/err")"
+  set +e
+  unshare --user --map-root-user --mount env \
+    OMARCHY_PATH="$ROOT" \
+    OMARCHY_PROFILE_FILE="$root_lock/profile" \
+    OMARCHY_PARENT_CONF="$root_lock/parent.conf" \
+    OMARCHY_NM_DNS_CONF="$root_lock/nm.conf" \
+    OMARCHY_RESOLVED_CONF="$root_lock/resolved.conf" \
+    OMARCHY_PARENT_DNS_APPLY=1 \
+    PATH="$ROOT/bin:/usr/bin:/bin" \
+    bash -c '
+      set -euo pipefail
+      if [[ -d /usr/local/bin ]]; then
+        mount --bind "'"$root_lock"'/localbin" /usr/local/bin
+      fi
+      bash "'"$dns"'" DHCP </dev/null
+    ' >"$root_lock/out-apply" 2>"$root_lock/err-apply"
+  apply_status=$?
+  set -e
+  (( apply_status == 0 )) ||
+    fail "root omarchy-dns applies a locked change when OMARCHY_PARENT_DNS_APPLY=1" "$(<"$root_lock/err-apply")"
+  pass "root omarchy-dns refuses a locked change without OMARCHY_PARENT_DNS_APPLY"
+else
+  pass "no unprivileged user namespace; skipping the root lock probe"
+fi

@@ -815,6 +815,7 @@ create_user() {
   # explicit grant instead of wheel. Idempotent, so a retry is safe.
   if $CHILD_INSTALL; then
     omarchy-parent apply --user "$username"
+    omarchy-parent-dns on
   fi
 }
 

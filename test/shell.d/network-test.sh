@@ -10,6 +10,11 @@ const network = requireFromRoot('shell/plugins/panels/network/Model.js')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/network/Panel.qml', 'utf8')
 
 assert(/IpcHandler[\s\S]*?function toggleNetwork\(\) \{ root\.toggleNetwork\(\) \}/.test(panelSource), 'network exposes the Wi-Fi radio toggle over IPC')
+assert(/command: \["omarchy-parent-dns", "locked"\]/.test(panelSource), 'network asks omarchy-parent-dns whether family DNS is locked')
+assert(/dnsProviders: \["DHCP", "Cloudflare", "Families", "Security", "Google", "Custom"\]/.test(panelSource), 'network lists Families and Security beside the other DNS providers')
+assert(/if \(root\.dnsLocked \|\| !root\.bar \|\| !provider \|\| actionProc\.running\) return/.test(panelSource), 'network refuses DNS chip clicks while family DNS is locked')
+assert(/visible: !root\.dnsLocked/.test(panelSource), 'network hides the DNS picker while family DNS is locked')
+assert(/Open Captive Portal/.test(panelSource), 'network keeps the captive portal button beside a locked DNS row')
 assert(/manageIpc: false/.test(panelSource), 'network owns its IPC handler so it can extend the target methods')
 
 // Opening from the bar must call open() and nothing else. open() runs

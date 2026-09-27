@@ -75,6 +75,7 @@ Panel {
   property bool wifiStationAvailable: false
   property string dnsProvider: ""
   property string pendingDnsProvider: ""
+  property bool dnsLocked: false
   // Wi-Fi band state from `omarchy-network-band`. `bandCurrent` is the band
   // the radio is actually on; `bandSelected` is the pinned choice ("auto" when
   // nothing is pinned), and the two differ whenever Auto is in effect.
@@ -138,7 +139,7 @@ Panel {
   readonly property bool speedHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === speedHeaderIndex
   readonly property bool toggleHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === toggleHeaderIndex
   readonly property string toggleHint: Networking.wifiEnabled ? "Turn Wi-Fi off" : "Turn Wi-Fi on"
-  readonly property var dnsProviders: ["DHCP", "Cloudflare", "Google", "Custom"]
+  readonly property var dnsProviders: ["DHCP", "Cloudflare", "Families", "Security", "Google", "Custom"]
   property int dnsIndex: 0
   // ["2.4", "5", ...], or empty when there is nothing to choose between.
   // Wi-Fi only: on Ethernet the band of a secondary radio is not what the
@@ -241,6 +242,7 @@ Panel {
   }
 
   function activateDns() {
+    if (dnsLocked) return
     if (dnsIndex < 0 || dnsIndex >= dnsProviders.length) return
     setDns(dnsProviders[dnsIndex])
   }
@@ -530,6 +532,7 @@ Panel {
       dnsProc.command = ["bash", "-c", root.dnsCommand("")]
       dnsProc.running = true
     }
+    if (!dnsLockProc.running) dnsLockProc.running = true
     if (!bandProc.running) {
       bandProc.command = ["omarchy-network-band"]
       bandProc.running = true
@@ -720,7 +723,7 @@ Panel {
   }
 
   function setDns(provider) {
-    if (!root.bar || !provider || actionProc.running) return
+    if (root.dnsLocked || !root.bar || !provider || actionProc.running) return
 
     if (provider === "Custom") {
       var launcher = "omarchy-launch-floating-terminal-with-presentation"
@@ -896,6 +899,12 @@ Panel {
       waitForEnd: true
       onStreamFinished: root.updateDns(text)
     }
+  }
+
+  Process {
+    id: dnsLockProc
+    command: ["omarchy-parent-dns", "locked"]
+    onExited: function(exitCode) { root.dnsLocked = (exitCode === 0) }
   }
 
   Process {
@@ -1522,49 +1531,52 @@ Panel {
         spacing: Style.space(10)
 
         PanelSectionHeader {
-          text: "DNS PROVIDER"
+          text: {
+            if (root.dnsLocked) return "FAMILY DNS"
+            if (root.dnsProvider === "Families" || root.dnsProvider === "Security")
+              return "DNS PROVIDER: " + root.dnsProvider.toUpperCase()
+            return "DNS PROVIDER"
+          }
           foreground: root.bar.foreground
           fontFamily: root.bar.fontFamily
         }
 
+        Text {
+          visible: root.dnsLocked
+          width: parent.width
+          text: root.dnsProvider === "Security"
+            ? "Locked · malware only. A parent can change this with omarchy-parent dns."
+            : "Locked · malware + adult. A parent can change this with omarchy-parent dns."
+          textFormat: Text.PlainText
+          wrapMode: Text.WordWrap
+          color: root.bar.foreground
+          opacity: 0.7
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.bodySmall
+        }
+
         Row {
           id: dnsRow
+          visible: !root.dnsLocked
           width: parent.width
           spacing: Style.space(6)
 
-          readonly property int count: 4
+          readonly property int count: root.dnsProviders.length
           readonly property real cellWidth: (width - spacing * (count - 1)) / count
 
-          DnsProviderPill {
-            provider: "DHCP"
-            index: 0
-            tooltipText: "Use DNS from DHCP"
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
-          }
-
-          DnsProviderPill {
-            provider: "Cloudflare"
-            index: 1
-            tooltipText: "Set DNS to Cloudflare"
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
-          }
-
-          DnsProviderPill {
-            provider: "Google"
-            index: 2
-            tooltipText: "Set DNS to Google"
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
-          }
-
-          DnsProviderPill {
-            provider: "Custom"
-            index: 3
-            tooltipText: "Set custom DNS servers"
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
+          Repeater {
+            model: root.dnsProviders
+            delegate: DnsProviderPill {
+              provider: modelData
+              index: index
+              tooltipText: {
+                if (provider === "DHCP") return "Use DNS from DHCP"
+                if (provider === "Custom") return "Set custom DNS servers"
+                return "Set DNS to " + provider
+              }
+              width: dnsRow.cellWidth
+              onClicked: root.setDns(provider)
+            }
           }
         }
       }

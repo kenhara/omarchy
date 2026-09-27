@@ -29,6 +29,13 @@ setup_firefox_wayland() {
   echo "MOZ_ENABLE_WAYLAND=1" > ~/.config/environment.d/omarchy-firefox-wayland.conf
 }
 
+apply_child_doh_if_locked() {
+  if omarchy-parent-dns locked; then
+    # One parent-password prompt; apply writes dns.json / policies.json as root.
+    omarchy-parent-dns apply
+  fi
+}
+
 case $1 in
 chromium)
   echo "Installing Chromium..."
@@ -37,6 +44,7 @@ chromium)
   setup_chromium_policy_directory /etc/chromium/policies/managed
   copy_chromium_flags ~/.config/chromium-flags.conf
   omarchy-theme-set-browser
+  apply_child_doh_if_locked
   announce_browser_installed "Chromium"
   ;;
 chrome)
@@ -46,6 +54,7 @@ chrome)
   setup_chromium_policy_directory /etc/opt/chrome/policies/managed
   copy_chromium_flags ~/.config/chrome-flags.conf
   omarchy-theme-set-browser
+  apply_child_doh_if_locked
   announce_browser_installed "Chrome"
   ;;
 edge)
@@ -55,6 +64,7 @@ edge)
   setup_chromium_policy_directory /etc/opt/edge/policies/managed
   copy_chromium_flags ~/.config/microsoft-edge-stable-flags.conf
   omarchy-theme-set-browser
+  apply_child_doh_if_locked
   announce_browser_installed "Edge"
   ;;
 brave)
@@ -64,6 +74,7 @@ brave)
   setup_chromium_policy_directory /etc/brave/policies/managed
   copy_chromium_flags ~/.config/brave-flags.conf
   omarchy-theme-set-browser
+  apply_child_doh_if_locked
   announce_browser_installed "Brave"
   ;;
 brave-origin)
@@ -73,6 +84,7 @@ brave-origin)
   setup_chromium_policy_directory /etc/brave/policies/managed
   copy_chromium_flags ~/.config/brave-origin-flags.conf
   omarchy-theme-set-browser
+  apply_child_doh_if_locked
   announce_browser_installed "Brave Origin"
   ;;
 firefox)
@@ -81,6 +93,7 @@ firefox)
 
   browser_policy_setup_firefox_distribution /usr/lib/firefox/distribution
   setup_firefox_wayland
+  apply_child_doh_if_locked
   announce_browser_installed "Firefox"
   ;;
 zen)
@@ -89,6 +102,7 @@ zen)
 
   browser_policy_setup_firefox_distribution /opt/zen-browser/distribution
   setup_firefox_wayland
+  apply_child_doh_if_locked
   announce_browser_installed "Zen"
   ;;
 *)

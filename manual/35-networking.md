@@ -12,9 +12,11 @@ If you actually need the password itself, `omarchy network password <interface>`
 
 ## DNS
 
-Omarchy uses whatever DNS your network hands out over DHCP. You can override that for the whole machine under _Setup > Network > DNS_, where Cloudflare and Google are one click away. Pick _Custom_ to type in your own servers.
+Omarchy uses whatever DNS your network hands out over DHCP. You can override that for the whole machine under _Setup > Network > DNS_, where Cloudflare, Cloudflare Families (malware + adult), Security (malware only), and Google are one click away. Pick _Custom_ to type in your own servers.
 
-From the terminal, `omarchy dns` prints the current provider and `omarchy dns Cloudflare` sets one.
+From the terminal, `omarchy dns` prints the current provider and `omarchy dns Cloudflare` sets one. `omarchy dns Families` and `omarchy dns Security` use [1.1.1.1 for Families](https://developers.cloudflare.com/1.1.1.1/setup/#1111-for-families) over strict DNS-over-TLS.
+
+A child install turns Families on by default and locks the picker so the kid cannot change it. A parent switches modes with `sudo omarchy-parent dns on` (Families), `security` (malware only), or `off` (DHCP; stops enforcing a resolver). Changing the provider still asks for the parent password — the kid is not in `wheel`. With `omarchy-parent wifi kid` the kid can briefly change a connection's DNS until the next time that network comes up, when the dispatcher writes family DNS back. Hotel and school captive portals can fail under strict DNS-over-TLS: `sudo omarchy-parent dns off`, sign in, then `sudo omarchy-parent dns on`. See [security](48-security.md) for what family DNS does and does not block.
 
 ## Pinning the Wi-Fi band
 

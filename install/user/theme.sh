@@ -2,12 +2,16 @@
 mkdir -p ~/.config/omarchy/themes
 
 if [[ ! -s $HOME/.local/state/omarchy/current/theme.name ]]; then
+  default_theme="Tokyo Night"
+  if omarchy-profile-child; then
+    default_theme="Cozy Night"
+  fi
   # iso-chroot and provision-owner both run without a live session to notify.
   if [[ ${OMARCHY_SETUP_CONTEXT:-runtime} != "runtime" ]]; then
-    OMARCHY_THEME_HEADLESS=1 omarchy-theme-set "Tokyo Night"
+    OMARCHY_THEME_HEADLESS=1 omarchy-theme-set "$default_theme"
     rm -f ~/.config/chromium/SingletonLock # otherwise archiso owns the Chromium singleton
   else
-    omarchy-theme-set "Tokyo Night"
+    omarchy-theme-set "$default_theme"
   fi
 fi
 omarchy-theme-set-pi --activate

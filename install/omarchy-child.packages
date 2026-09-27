@@ -5,3 +5,4 @@
 # packages cannot be vendored onto the offline ISO.
 gcompris-qt
 leocad
+nftables

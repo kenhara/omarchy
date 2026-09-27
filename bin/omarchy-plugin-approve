@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# omarchy:summary=Record a parent-approved third-party plugin id
+# omarchy:group=plugin
+# omarchy:args=<id>
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+# Appends one parent-approved third-party plugin id to the root-owned list.
+# Invoked as `sudo omarchy-plugin-approve <id>` so sudoers secure_path
+# resolves the command. The target path is fixed; environment variables do
+# not relocate it. This is a soft control over which ids the child-install
+# scan will load, not a lock on plugin code.
+
+set -euo pipefail
+
+(( EUID == 0 )) || {
+  echo "omarchy-plugin-approve: must run as root" >&2
+  exit 1
+}
+
+id="${1:-}"
+file="/etc/omarchy/plugins-parent-approved"
+
+[[ $id =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || {
+  echo "omarchy-plugin-approve: invalid plugin id" >&2
+  exit 1
+}
+
+install -d -m 755 "$(dirname "$file")"
+if [[ ! -e $file ]]; then
+  install -m 644 /dev/null "$file"
+fi
+chmod 644 "$file"
+chown root:root "$file"
+grep -qxF "$id" "$file" || printf '%s\n' "$id" >>"$file"

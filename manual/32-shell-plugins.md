@@ -41,7 +41,7 @@ Before it does anything, it tells you plainly that plugins run as arbitrary, uns
 
 A replacement bar can render installed widgets, but service-backed third-party widgets may have reduced functionality there because the bar is not allowed to request another plugin's live service object. Switch back to the built-in `omarchy.bar` if such a widget needs its companion service.
 
-Then it clones the repo into a staging directory, validates the manifest, refuses the install if another plugin already claims that id, and moves it into `~/.config/omarchy/plugins/<id>/`. Without `--enable` it asks whether you want it on now, and you can say no and go read the code first. It never runs anything from the plugin, never executes an install hook, and never asks for sudo — it clones files, checks the manifest, and flips a bit over IPC.
+Then it clones the repo into a staging directory, validates the manifest, refuses the install if another plugin already claims that id, and moves it into `~/.config/omarchy/plugins/<id>/`. Without `--enable` it asks whether you want it on now, and you can say no and go read the code first. It never runs anything from the plugin and never executes an install hook — it clones files, checks the manifest, and flips a bit over IPC. On a default install that path does not ask for sudo. On a child install, adding or enabling a third-party plugin asks for the parent password once so the id can be recorded, then drops the sudo ticket.
 
 Updating is a fast-forward pull of that same checkout:
 
@@ -69,6 +69,12 @@ omarchy plugin clone omarchy.clock
 That copies the whole plugin into `~/.config/omarchy/plugins/dhh.clock` (your username, not mine), renames it to "My Clock", enables it, and switches the shell over from the built-in to your copy — keeping an existing bar widget's position and settings. Add `--edit` to open the new directory in your `$EDITOR` right away, which is what the menu's _Setup > Plugins > Clone Plugin_ does for you.
 
 The username prefix keeps your clone's id yours, so sharing it doesn't collide with anyone else's. Calls made to the original built-in id get routed to your clone, so nothing that referred to `omarchy.clock` needs updating. And if you make a mess of it, `omarchy plugin remove dhh.clock` puts the built-in back.
+
+## Child installs
+
+On a child install, adding or enabling a third-party plugin asks for the parent password once, then drops the sudo ticket. That records the plugin id in `/etc/omarchy/plugins-parent-approved`. The list is a soft control over which ids the shell will load, not a lock on their code: a parent-approved id still runs whatever is in that directory, and `omarchy plugin update` is not gated.
+
+Hand-copied plugins under `~/.config/omarchy/plugins/` stay on disk but do not load until a parent approves the id. Built-in `omarchy.*` plugins are unaffected and never ask. A first-run toast titled "Explore Kids Plugins" opens the Kids category in the plugin store; pick one and ask a parent to add it.
 
 Saving a file anywhere under `~/.config/omarchy/plugins/` reloads the plugin code automatically, so you can leave the editor open and watch your changes land.
 

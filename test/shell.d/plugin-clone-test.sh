@@ -24,7 +24,7 @@ elif [[ $* == *"listPlugins"* ]]; then
     find "$HOME/.config/omarchy/plugins" -mindepth 2 -maxdepth 2 -name manifest.json -print0 |
       xargs -0 -r jq -s 'map({id: .id, enabled: true})'
   fi
-elif [[ $* == *"setPluginEnabled"* ]]; then
+elif [[ $* == *"enablePlugin"* || $* == *"setPluginEnabled"* ]]; then
   printf 'omarchy-shell %s\n' "$*" >>"$FAKE_CALLS"
   printf 'ok\n'
 fi
@@ -82,14 +82,14 @@ jq -e '
 ' "$clock/manifest.json" >/dev/null || fail "clock clone manifest is incorrect"
 pass "clone updates identity without replacing the manifest"
 
-grep -qx 'omarchy-plugin-enable tester.clock' "$CALLS" ||
+grep -qx 'omarchy-shell shell enablePlugin tester.clock {}' "$CALLS" ||
   fail "clone does not enable the editable copy"
 grep -qx 'omarchy-notification-send -g 󰐱 Editing Cloned Plugin Original plugin has been replace by clone.' "$CALLS" ||
   fail "clone does not notify that the editable clone is active"
 pass "clone enables bar widgets and confirms the editable clone"
 
 clone_plugin omarchy.keyboard-layout >/dev/null
-grep -qx 'omarchy-plugin-enable tester.keyboard-layout' "$CALLS" ||
+grep -qx 'omarchy-shell shell enablePlugin tester.keyboard-layout {}' "$CALLS" ||
   fail "clone does not enable a clone of a legacy string-form bar entry"
 pass "clone enables clones of legacy string-form bar entries"
 
@@ -105,7 +105,7 @@ jq -e '
   .entryPoints.menu == "Menu.qml" and
   .entryPoints.barWidget == "BarWidget.qml"
 ' "$menu/manifest.json" >/dev/null || fail "menu clone loses plugin kinds"
-grep -qx 'omarchy-plugin-enable tester.menu' "$CALLS" ||
+grep -qx 'omarchy-shell shell enablePlugin tester.menu {}' "$CALLS" ||
   fail "clone does not enable a multi-kind plugin"
 pass "clone preserves and enables multi-kind plugins"
 
@@ -123,7 +123,7 @@ clone_plugin omarchy.active-window >/dev/null
   fail "flat bar plugin clone is incomplete"
 pass "flat bar plugins clone from adjacent manifests"
 
-grep -qx 'omarchy-plugin-enable tester.active-window' "$CALLS" ||
+grep -qx 'omarchy-shell shell enablePlugin tester.active-window {}' "$CALLS" ||
   fail "clone does not activate a bar widget whose source is absent"
 pass "clone activates an absent bar widget"
 
@@ -142,12 +142,12 @@ clone_plugin omarchy.tray >/dev/null
 pass "flat bar plugins keep local script dependencies"
 
 clone_plugin omarchy.bar >/dev/null
-grep -qx 'omarchy-plugin-enable tester.bar' "$CALLS" ||
+grep -qx 'omarchy-shell shell enablePlugin tester.bar {}' "$CALLS" ||
   fail "clone does not select a cloned bar"
 pass "clone switches full bars"
 
 clone_plugin omarchy.background >/dev/null
-grep -qx 'omarchy-plugin-enable tester.background' "$CALLS" ||
+grep -qx 'omarchy-shell shell enablePlugin tester.background {}' "$CALLS" ||
   fail "clone does not enable an ordinary cloned plugin"
 pass "clone switches ordinary plugins"
 

@@ -150,6 +150,7 @@ ShellRoot {
       "defaultsPath=" + shell.defaultsPath,
       "userConfigPath=" + shell.userConfigPath)
     pluginRegistry.firstPartyDir = shell.firstPartyPluginsDir
+    pluginRegistry.omarchyPath = shell.omarchyPath
     pluginRegistry.shellConfigProvider = function() { return shell.shellConfig }
     pluginRegistry.shellConfigMutator = function(mutate) { shell.mutateShellConfig(mutate) }
     // PluginRegistry.ensureUserDir() runs in its own Component.onCompleted and

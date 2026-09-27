@@ -8,7 +8,9 @@
 # manifest.json / *.manifest.json, and emits one JSON object per plugin with
 # computed fields (sourceDir, barWidgetPath, barPath, firstParty). This is the
 # single source of truth used by bar selection and plugin enable/clone, so
-# those commands never re-implement manifest walking.
+# those commands never re-implement manifest walking. User plugins go through
+# scan_thirdparty_plugin_manifests so a child install cannot offer a bar the
+# shell will not load.
 
 set -o pipefail
 
@@ -20,10 +22,10 @@ done < <(find "$OMARCHY_PATH/shell/plugins" -mindepth 2 -maxdepth 4 -type f \( -
 
 user_dir="$HOME/.config/omarchy/plugins"
 if [[ -d $user_dir ]]; then
+  source "$OMARCHY_PATH/install/helpers/plugin-parent-gate.sh"
   while IFS= read -r manifest; do
     paths+=("$manifest")
-  done < <(find -L "$user_dir" -mindepth 2 -maxdepth 2 -type f -name manifest.json \
-    ! -path "$user_dir/.*/*" 2>/dev/null | sort)
+  done < <(scan_thirdparty_plugin_manifests "$user_dir")
 fi
 
 if (( ${#paths[@]} == 0 )); then

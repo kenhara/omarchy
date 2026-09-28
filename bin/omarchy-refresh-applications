@@ -6,21 +6,18 @@
 mkdir -p ~/.local/share/applications
 cp "$OMARCHY_PATH"/applications/*.desktop ~/.local/share/applications/
 
-# Skel already planted the adult set. On a child install, add the kid-only
-# launchers and drop the adult names listed in omarchy-child-hidden-applications.
+# Skel already planted the adult set. On a child install, copy any extra
+# launchers from install/omarchy-child-applications and drop the names in
+# omarchy-child-hidden-applications. Parent overrides in
+# /etc/omarchy/parent-apps-show and parent-apps-hide survive refresh and
+# updates; show wins.
 if omarchy-profile-child; then
   child_apps="$OMARCHY_PATH/install/omarchy-child-applications"
   if [[ -d $child_apps ]]; then
     cp "$child_apps"/*.desktop ~/.local/share/applications/
   fi
-
-  hidden="$OMARCHY_PATH/install/omarchy-child-hidden-applications"
-  if [[ -f $hidden ]]; then
-    while IFS= read -r name || [[ -n $name ]]; do
-      [[ -z $name || $name == \#* ]] && continue
-      rm -f "$HOME/.local/share/applications/${name}.desktop"
-    done <"$hidden"
-  fi
+  source "$OMARCHY_PATH/install/helpers/parent-apps.sh"
+  parent_apps_refresh_home "$HOME"
 fi
 
 if omarchy-cmd-present alacritty; then

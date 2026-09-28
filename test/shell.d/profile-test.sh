@@ -106,6 +106,7 @@ while IFS= read -r name || [[ -n $name ]]; do
 done <"$hidden"
 (( hidden_count > 0 )) || fail "install/omarchy-child-hidden-applications lists launchers to drop"
 (( battlenet_hidden == 1 )) || fail "the hidden launcher list includes Battle.net"
-grep -Fq 'omarchy-child-hidden-applications' "$ROOT/bin/omarchy-refresh-applications" ||
+grep -Fq 'omarchy-child-hidden-applications' "$ROOT/bin/omarchy-refresh-applications" \
+  || grep -Fq 'omarchy-child-hidden-applications' "$ROOT/install/helpers/parent-apps.sh" ||
   fail "omarchy-refresh-applications reads the hidden launcher list"
 pass "the child hidden-launcher list names shipped desktop files"

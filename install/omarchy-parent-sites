@@ -1,0 +1,24 @@
+# Omarchy kids mode: website list for the kid account.
+# Nothing is blocked until a parent uncomments (or adds) names below.
+# sudo omarchy-parent sites edit opens this file and applies on save;
+# sites block|allow|list also edit it. A hand edit takes effect at the next apply.
+#
+# Blocklist (default) sinkholes listed domains in /etc/hosts and blocks them
+# in Chromium-family / Firefox policy. Allowlist is browser-only: everything
+# else is blocked in those browsers, and /etc/hosts is left alone. Neither
+# mode stops a raw IP, a portable browser, or a live USB with the disk password.
+#
+# mode: blocklist
+# youtube.com
+# tiktok.com
+#
+# Allowlist only covers Chromium-family / Firefox / Zen, via browser policy,
+# not the network. Other apps, portable browsers, and anything else still
+# reach the internet. Sites often need extra names (logins, CDNs, video hosts,
+# like khanacademy.org also needing kastatic.org); add those or the page looks
+# broken. Prefer blocklist if you just want a few sites gone.
+#
+# mode: allowlist
+# khanacademy.org
+# scratch.mit.edu
+# wikipedia.org

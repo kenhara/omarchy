@@ -289,6 +289,9 @@ and/or a working user systemd instance:
   first login and opens the cheatsheet when clicked. The caller runs
   `omarchy-notification-wait` once before this and the Wi-Fi step, so both
   toasts land on a live notification server.
+- `install/user/first-run/kids-sites.sh` — on a child install only, a
+  one-shot toast that opens `omarchy-parent sites edit` (parent password)
+  when clicked.
 - `install/user/first-run/wifi.sh` — Wi-Fi/update toasts (waits detached on
   `nm-online` so the update prompt only lands once there is a connection).
 
@@ -311,6 +314,7 @@ finalization. It sources:
 
 - `install/config/all.sh` — theme links, lockout limits, lockscreen PAM,
   the child install's parental posture (`omarchy-parent apply`),
+  child-install website list (`omarchy-parent-sites`, inert until a parent edits it),
   powerprofilesctl shebang fix, SSH command path and keepalive, docker setup,
   Snapper retention, locate index tuning, service enablement, firewall.
 - `install/hardware/all.sh` via `omarchy-apply-hardware` — vendor- and

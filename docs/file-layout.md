@@ -291,6 +291,9 @@ and/or a working user systemd instance:
 - `install/user/first-run/kids-plugins.sh` — on a child install only, a
   one-shot toast that opens the Kids category on the Omarchy plugin store
   when clicked.
+- `install/user/first-run/kids-sites.sh` — on a child install only, a
+  one-shot toast that opens `omarchy-parent sites edit` (parent password)
+  when clicked.
 - `install/user/first-run/wifi.sh` — Wi-Fi/update toasts (waits detached on
   `nm-online` so the update prompt only lands once there is a connection).
 
@@ -315,7 +318,7 @@ finalization. It sources:
   the child install's parental posture (`omarchy-parent apply`), family DNS
   (`omarchy-parent-dns on` on child installs, which also pins browser DoH and
   enables `omarchy-parent-dns-filter.service` for the kid-uid egress table),
-  child-install site blocking (`omarchy-parent-sites`, YouTube on by default),
+  child-install website list (`omarchy-parent-sites`, inert until a parent edits it),
   powerprofilesctl shebang fix, SSH command path and keepalive, docker setup,
   Snapper retention, locate index tuning, service enablement, firewall.
 - `install/hardware/all.sh` via `omarchy-apply-hardware` — vendor- and

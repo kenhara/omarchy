@@ -1,10 +1,11 @@
-# Shared by omarchy-parent-sites: the kid's blocked-domain list, the hosts
-# sinkhole, and the Chromium-family URLBlocklist. Sourced after the caller has
-# defined `fail`. Paths are overridable so the shell tests never touch the
-# machine's /etc.
+# Shared by omarchy-parent-sites: the kid's website list, the hosts sinkhole
+# (blocklist only), and Chromium-family / Firefox policy. Sourced after the
+# caller has defined `fail`. Paths are overridable so the shell tests never
+# touch the machine's /etc.
 
 PARENT_SITES_FILE="${OMARCHY_PARENT_SITES_FILE:-/etc/omarchy/parent-sites}"
 PARENT_SITES_HOSTS="${OMARCHY_PARENT_SITES_HOSTS:-/etc/hosts}"
+PARENT_SITES_TEMPLATE="${OMARCHY_PARENT_SITES_TEMPLATE:-$OMARCHY_PATH/install/omarchy-parent-sites}"
 PARENT_SITES_YOUTUBE="${OMARCHY_PARENT_SITES_YOUTUBE:-$OMARCHY_PATH/install/omarchy-parent-sites-youtube}"
 PARENT_SITES_POLICY_NAME=omarchy-parent-sites.json
 PARENT_SITES_HOSTS_BEGIN="# BEGIN omarchy-parent-sites"
@@ -49,19 +50,55 @@ parent_sites_normalize() {
   printf '%s\n' "$host"
 }
 
-parent_sites_read_lines() {
-  local file="$1" line
-  [[ -f $file ]] || return 0
+parent_sites_trim() {
+  local line="$1"
+  line=${line#"${line%%[![:space:]]*}"}
+  line=${line%"${line##*[![:space:]]}"}
+  printf '%s\n' "$line"
+}
+
+# Copy the inert commented template when the live file is missing. Never
+# overwrites a parent-edited file.
+parent_sites_ensure_file() {
+  local directory stage
+  [[ -f $PARENT_SITES_FILE ]] && return 0
+  [[ -f $PARENT_SITES_TEMPLATE ]] || fail "website list template is missing: $PARENT_SITES_TEMPLATE"
+  directory=$(dirname "$PARENT_SITES_FILE") || return
+  mkdir -p "$directory" || return
+  stage=$(mktemp "$directory/.${PARENT_SITES_FILE##*/}.XXXXXX") || return
+  cat "$PARENT_SITES_TEMPLATE" >"$stage" || return
+  chmod 644 "$stage" || return
+  mv -f -- "$stage" "$PARENT_SITES_FILE"
+}
+
+parent_sites_active_lines() {
+  local line
+  parent_sites_ensure_file
   while IFS= read -r line || [[ -n $line ]]; do
-    line=${line#"${line%%[![:space:]]*}"}
-    line=${line%"${line##*[![:space:]]}"}
+    line=$(parent_sites_trim "$line")
     [[ -z $line || $line == \#* ]] && continue
     printf '%s\n' "$line"
-  done <"$file"
+  done <"$PARENT_SITES_FILE"
+}
+
+parent_sites_mode() {
+  local line value mode=blocklist
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ $line == mode:* ]] || continue
+    value=$(parent_sites_trim "${line#mode:}")
+    case "$value" in
+      allowlist | blocklist) mode=$value ;;
+    esac
+  done < <(parent_sites_active_lines)
+  printf '%s\n' "$mode"
 }
 
 parent_sites_list() {
-  parent_sites_read_lines "$PARENT_SITES_FILE"
+  local line
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ $line == mode:* ]] && continue
+    printf '%s\n' "$line"
+  done < <(parent_sites_active_lines)
 }
 
 parent_sites_has() {
@@ -72,50 +109,50 @@ parent_sites_has() {
   return 1
 }
 
-parent_sites_write_list() {
-  local directory stage domain
+# Uncomment, comment, or append DOMAIN so the live file keeps its examples.
+# want=present makes the name an active line; want=absent comments it out.
+parent_sites_set_domain() {
+  local domain="$1" want="$2"
+  local directory stage line trimmed body found=0
+
+  parent_sites_ensure_file
   directory=$(dirname "$PARENT_SITES_FILE") || return
-  mkdir -p "$directory" || return
   stage=$(mktemp "$directory/.${PARENT_SITES_FILE##*/}.XXXXXX") || return
-  cat >"$stage" <<'CONF'
-# Omarchy kids mode: domains the kid account must not open.
-# sudo omarchy-parent sites block|allow edits this file; a hand edit takes
-# effect at the next `sudo omarchy-parent sites apply`.
-CONF
-  for domain in "$@"; do
-    printf '%s\n' "$domain" >>"$stage" || return
-  done
+
+  while IFS= read -r line || [[ -n $line ]]; do
+    trimmed=$(parent_sites_trim "$line")
+    body=$trimmed
+    [[ $body == \#* ]] && body=$(parent_sites_trim "${body#\#}")
+    if [[ $found == 0 && $body == "$domain" ]]; then
+      found=1
+      if [[ $want == present ]]; then
+        printf '%s\n' "$domain" >>"$stage"
+      else
+        printf '# %s\n' "$domain" >>"$stage"
+      fi
+      continue
+    fi
+    printf '%s\n' "$line" >>"$stage"
+  done <"$PARENT_SITES_FILE"
+
+  if [[ $found == 0 && $want == present ]]; then
+    printf '%s\n' "$domain" >>"$stage"
+  fi
+
   chmod 644 "$stage" || return
   mv -f -- "$stage" "$PARENT_SITES_FILE"
 }
 
 parent_sites_add() {
-  local domain="$1" listed=() current
-  while IFS= read -r current || [[ -n $current ]]; do
-    listed+=("$current")
-  done < <(parent_sites_list)
-  for current in "${listed[@]+"${listed[@]}"}"; do
-    [[ $current == "$domain" ]] && return 0
-  done
-  listed+=("$domain")
-  parent_sites_write_list "${listed[@]}"
+  parent_sites_set_domain "$1" present
 }
 
 parent_sites_remove() {
-  local domain="$1" kept=() current
-  while IFS= read -r current || [[ -n $current ]]; do
-    [[ $current == "$domain" ]] && continue
-    kept+=("$current")
-  done < <(parent_sites_list)
-  if (( ${#kept[@]} )); then
-    parent_sites_write_list "${kept[@]}"
-  else
-    parent_sites_write_list
-  fi
+  parent_sites_set_domain "$1" absent
 }
 
-# Hostnames to sinkhole for one parent-facing domain: the name, www., and
-# the YouTube alias set when that is the domain.
+# Hostnames to sinkhole (blocklist) or allow in the browser for one parent-facing
+# domain: the name, www., and the YouTube alias set when that is the domain.
 parent_sites_hosts_for() {
   local domain="$1" alias
   printf '%s\n' "$domain"
@@ -123,9 +160,11 @@ parent_sites_hosts_for() {
   parent_sites_is_youtube "$domain" || return 0
   [[ -f $PARENT_SITES_YOUTUBE ]] || return 0
   while IFS= read -r alias || [[ -n $alias ]]; do
+    alias=$(parent_sites_trim "$alias")
+    [[ -z $alias || $alias == \#* ]] && continue
     printf '%s\n' "$alias"
     [[ $alias == www.* ]] || printf 'www.%s\n' "$alias"
-  done < <(parent_sites_read_lines "$PARENT_SITES_YOUTUBE")
+  done <"$PARENT_SITES_YOUTUBE"
 }
 
 parent_sites_all_hosts() {
@@ -135,9 +174,6 @@ parent_sites_all_hosts() {
   done < <(parent_sites_list) | awk 'NF && !seen[$0]++'
 }
 
-# URLBlocklist patterns: the apex and *.apex so www/m/music and the YouTube
-# CDNs (r*.googlevideo.com) are covered in Chromium-family browsers even when
-# /etc/hosts cannot list every subdomain.
 parent_sites_url_patterns() {
   local host
   while IFS= read -r host || [[ -n $host ]]; do
@@ -161,10 +197,18 @@ parent_sites_json_array() {
 }
 
 parent_sites_policy_json() {
-  local patterns=() pattern
+  local mode patterns=() pattern
+  mode=$(parent_sites_mode)
   while IFS= read -r pattern || [[ -n $pattern ]]; do
     patterns+=("$pattern")
   done < <(parent_sites_url_patterns)
+  if [[ $mode == allowlist ]]; then
+    # "*" would also block chrome:// and the new-tab page. Keep those usable;
+    # the listed names are the only http(s) destinations that still load.
+    patterns+=("chrome://*" "chrome-extension://*" "about:*")
+    printf '{"URLBlocklist": ["*"], "URLAllowlist": %s}\n' "$(parent_sites_json_array "${patterns[@]}")"
+    return
+  fi
   if (( ${#patterns[@]} == 0 )); then
     printf '%s\n' '{}'
     return
@@ -207,23 +251,25 @@ parent_sites_apply_chromium() {
 # family-DNS DoH pins) survive. python3 is the JSON writer.
 parent_sites_firefox_merge() {
   local file="$1"
-  local tmp patterns=()
+  local tmp patterns=() mode pattern
 
   [[ -f $file && ! -L $file ]] || return 0
   command -v python3 >/dev/null || return 0
 
-  local pattern
+  mode=$(parent_sites_mode)
   while IFS= read -r pattern || [[ -n $pattern ]]; do
     patterns+=("*://$pattern/*" "*://*.$pattern/*")
   done < <(parent_sites_all_hosts)
 
   tmp=$(mktemp) || return 1
-  if ! PARENT_SITES_FIREFOX_PATTERNS=$(printf '%s\n' "${patterns[@]+"${patterns[@]}"}") python3 - "$file" "$tmp" <<'PY'
+  if ! PARENT_SITES_MODE=$mode PARENT_SITES_FIREFOX_PATTERNS=$(printf '%s\n' "${patterns[@]+"${patterns[@]}"}") \
+    python3 - "$file" "$tmp" <<'PY'
 import json
 import os
 import sys
 
 src, dest = sys.argv[1], sys.argv[2]
+mode = os.environ.get("PARENT_SITES_MODE", "blocklist")
 raw = os.environ.get("PARENT_SITES_FIREFOX_PATTERNS", "")
 patterns = [line for line in raw.splitlines() if line]
 try:
@@ -236,7 +282,9 @@ if not isinstance(data, dict):
 policies = data.setdefault("policies", {})
 if not isinstance(policies, dict):
     sys.exit(1)
-if patterns:
+if mode == "allowlist":
+    policies["WebsiteFilter"] = {"Block": ["<all_urls>"], "Exceptions": patterns}
+elif patterns:
     policies["WebsiteFilter"] = {"Block": patterns, "Exceptions": []}
 else:
     policies.pop("WebsiteFilter", None)
@@ -282,7 +330,7 @@ parent_sites_hosts_without_section() {
 }
 
 parent_sites_apply_hosts() {
-  local directory stage host rest
+  local directory stage host rest mode
   directory=$(dirname "$PARENT_SITES_HOSTS") || return
   mkdir -p "$directory" || return
   stage=$(mktemp "$directory/.${PARENT_SITES_HOSTS##*/}.XXXXXX") || return
@@ -292,7 +340,8 @@ parent_sites_apply_hosts() {
   else
     : >"$stage" || return
   fi
-  if parent_sites_list | grep -q .; then
+  mode=$(parent_sites_mode)
+  if [[ $mode == blocklist ]] && parent_sites_list | grep -q .; then
     [[ -s $stage ]] && printf '\n' >>"$stage"
     printf '%s\n' "$PARENT_SITES_HOSTS_BEGIN" >>"$stage"
     while IFS= read -r host || [[ -n $host ]]; do
@@ -310,8 +359,31 @@ parent_sites_flush_resolver() {
 }
 
 parent_sites_apply() {
+  parent_sites_ensure_file
   parent_sites_apply_hosts || fail "could not update $PARENT_SITES_HOSTS"
   parent_sites_apply_chromium || fail "could not write Chromium URLBlocklist policy"
   parent_sites_apply_firefox || fail "could not merge Firefox WebsiteFilter"
   parent_sites_flush_resolver
+}
+
+# The same editor omarchy-launch-editor would pick, run inline so apply can
+# run after it quits. GUI editors fall back to nvim: this file is root-owned.
+parent_sites_editor() {
+  local editor="nvim" user_home default_file
+  if [[ -n ${SUDO_USER:-} ]]; then
+    user_home=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+    default_file="$user_home/.local/state/omarchy/defaults/editor"
+    if [[ -f $default_file ]]; then
+      read -r editor <"$default_file"
+    fi
+  elif [[ -n ${EDITOR:-} ]]; then
+    editor=$EDITOR
+  fi
+  editor=${editor##*/}
+  case "$editor" in
+    nvim | vim | nano | micro | hx | helix | fresh) ;;
+    *) editor=nvim ;;
+  esac
+  command -v "$editor" >/dev/null || editor=nvim
+  printf '%s\n' "$editor"
 }

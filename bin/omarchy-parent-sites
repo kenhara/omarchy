@@ -1,0 +1,132 @@
+#!/bin/bash
+
+# omarchy:summary=Block or allow sites for the kid account
+# omarchy:args=[block|allow|list|apply] [DOMAIN...]
+# omarchy:examples=sudo omarchy-parent sites block youtube.com | omarchy parent sites allow youtube.com | sudo omarchy-parent sites list
+# omarchy:requires-sudo=true
+
+# Parent-controlled site blocking on a child install. The kid cannot edit the
+# list or the enforcement files; sudo asks for the parent password. Does not
+# depend on family DNS: systemd-resolved still honours the hosts sinkhole, and
+# Chromium-family URLBlocklist catches the browser even when it uses DoH.
+
+set -euo pipefail
+
+OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+
+fail() {
+  echo "Error: $1" >&2
+  exit 1
+}
+
+source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
+source "$OMARCHY_PATH/install/helpers/parent-sites.sh"
+
+usage() {
+  cat <<USAGE
+Usage: omarchy-parent sites [block|allow|list|apply] [DOMAIN...]
+
+block   Stop the kid account opening DOMAIN (and its usual aliases)
+allow   Take DOMAIN off the block list
+list    Print the blocked domains (the same as a bare \`sites\`)
+apply   Re-write the hosts sinkhole and browser policy from the saved list
+USAGE
+}
+
+require_child_install() {
+  omarchy-profile-child || fail "this is not a child install; omarchy-parent sites only applies to the kids mode profile"
+}
+
+print_list() {
+  local domain
+  if ! parent_sites_list | grep -q .; then
+    echo "No sites are blocked."
+    return
+  fi
+  while IFS= read -r domain || [[ -n $domain ]]; do
+    printf '%s\n' "$domain"
+  done < <(parent_sites_list)
+}
+
+parse_domain() {
+  local raw="$1" domain
+  if domain=$(parent_sites_normalize "$raw"); then
+    printf '%s\n' "$domain"
+    return 0
+  fi
+  if [[ ${raw,,} == "youtube" ]]; then
+    echo "Error: '$raw' is not a domain; did you mean youtube.com? (sudo omarchy-parent sites block youtube.com)" >&2
+  else
+    echo "Error: '$raw' is not a domain (hostnames only, like youtube.com)" >&2
+  fi
+  return 1
+}
+
+add_domains() {
+  local raw domain
+  (( $# )) || fail "sites $command needs a domain, like youtube.com"
+  for raw in "$@"; do
+    domain=$(parse_domain "$raw") || exit 1
+    parent_sites_add "$domain"
+  done
+}
+
+remove_domains() {
+  local raw domain
+  (( $# )) || fail "sites $command needs a domain, like youtube.com"
+  for raw in "$@"; do
+    domain=$(parse_domain "$raw") || exit 1
+    parent_sites_remove "$domain"
+  done
+}
+
+case "${1:-list}" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
+  block|allow|list|apply|"")
+    ;;
+  *)
+    echo "Unknown command: $1" >&2
+    usage >&2
+    exit 1
+    ;;
+esac
+
+if (( EUID != 0 )); then
+  status=0
+  sudo env OMARCHY_PATH="$OMARCHY_PATH" \
+    OMARCHY_PARENT_SITES_FILE="${OMARCHY_PARENT_SITES_FILE:-}" \
+    OMARCHY_PARENT_SITES_HOSTS="${OMARCHY_PARENT_SITES_HOSTS:-}" \
+    OMARCHY_PARENT_SITES_YOUTUBE="${OMARCHY_PARENT_SITES_YOUTUBE:-}" \
+    "$0" "$@" || status=$?
+  sudo -k
+  exit "$status"
+fi
+
+require_child_install
+
+command="${1:-list}"
+shift || true
+
+case "$command" in
+  list)
+    print_list
+    ;;
+  apply)
+    parent_sites_apply
+    print_list
+    ;;
+  block)
+    add_domains "$@"
+    parent_sites_apply
+    echo "Blocked:"
+    print_list
+    ;;
+  allow)
+    remove_domains "$@"
+    parent_sites_apply
+    print_list
+    ;;
+esac

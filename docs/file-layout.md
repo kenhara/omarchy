@@ -311,6 +311,7 @@ finalization. It sources:
 
 - `install/config/all.sh` — theme links, lockout limits, lockscreen PAM,
   the child install's parental posture (`omarchy-parent apply`),
+  child-install site blocking (`omarchy-parent-sites`, YouTube on by default),
   powerprofilesctl shebang fix, SSH command path and keepalive, docker setup,
   Snapper retention, locate index tuning, service enablement, firewall.
 - `install/hardware/all.sh` via `omarchy-apply-hardware` — vendor- and

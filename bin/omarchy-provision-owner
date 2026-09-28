@@ -659,6 +659,8 @@ user_form() {
     $REKEY_PENDING && say "It also unlocks the disk, so a parent can always get in."
     echo
     omarchy_prompt_parent_password || return $?
+    echo
+    omarchy_prompt_block_youtube || return $?
     # The parent-password header would otherwise sit over the screens that
     # follow, which are about the account again.
     step "Let's finish your user account..."
@@ -690,10 +692,16 @@ confirm_form() {
   # lengths on the screen.
   local mask="********" password_label="Password" parent_row="" identity_rows
   identity_rows="Full name,${full_name:-[Skipped]}"$'\n'"Email address,${email_address:-[Skipped]}"$'\n'
+  local youtube_row=""
   if $CHILD_INSTALL; then
     password_label="Kid password"
     parent_row="Parent password,$mask"$'\n'
     identity_rows="" # never asked
+    if [[ ${block_youtube:-1} == 1 ]]; then
+      youtube_row="Block YouTube,Yes"$'\n'
+    else
+      youtube_row="Block YouTube,No"$'\n'
+    fi
   fi
 
   clear_logo
@@ -702,7 +710,7 @@ confirm_form() {
 Keyboard,${keyboard_label:-English (US)}
 Username,$username
 $password_label,$mask
-${parent_row}${identity_rows}Hostname,${hostname:-omarchy}
+${parent_row}${youtube_row}${identity_rows}Hostname,${hostname:-omarchy}
 Timezone,${timezone:-UTC}" |
     gum table -s "," -p | sed "s/^/${PADDING_LEFT_SPACES}/"
 

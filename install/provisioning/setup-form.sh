@@ -21,7 +21,7 @@
 # Callers supply `notice <message> <seconds>` for validation feedback, and set
 # the variables these prompts write: computer_for, keyboard, keyboard_label,
 # username, password, password_confirmation, parent_password,
-# parent_password_confirmation, full_name, email_address, hostname, timezone.
+# parent_password_confirmation, block_youtube, full_name, email_address, hostname, timezone.
 
 OMARCHY_FORM_BACK=1
 OMARCHY_FORM_SIGNAL=130
@@ -186,6 +186,23 @@ omarchy_prompt_parent_password() {
       return 0
     fi
   done
+}
+
+# Child installs only. Default is Block: hiding the YouTube launcher does not
+# stop the kid typing youtube.com. omarchy-iso's child user step can call this
+# after the parent password (omacom/omarchy-iso#146) and pass the answer to the
+# target as OMARCHY_PARENT_BLOCK_YOUTUBE; this repo does not edit the ISO.
+omarchy_prompt_block_youtube() {
+  local choice status
+  choice=$(printf '%s\n' "Block YouTube (recommended)" "Allow YouTube" |
+    gum choose --height 4 --selected "Block YouTube (recommended)" --header "Should this machine block YouTube?") && status=0 || status=$?
+  ((status == 0)) || return $status
+
+  if [[ $choice == "Allow YouTube" ]]; then
+    block_youtube=0
+  else
+    block_youtube=1
+  fi
 }
 
 # Both fields are skippable with Return, so an empty value is a real answer and

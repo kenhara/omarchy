@@ -21,6 +21,7 @@ pass "first-boot provisioning keys on the child profile"
 user_form=$(section user_form)
 [[ $user_form == *'omarchy_prompt_password kid || return $?'* ]] || fail "the child form asks for the kid password in kid mode"
 [[ $user_form == *'omarchy_prompt_parent_password || return $?'* ]] || fail "the child form asks for the parent password"
+[[ $user_form == *'omarchy_prompt_block_youtube || return $?'* ]] || fail "the child form asks whether to block YouTube"
 [[ $user_form == *'omarchy_prompt_password || return $?'* ]] || fail "a default install still asks for its one password"
 [[ $user_form == *$'  if $CHILD_INSTALL; then\n    full_name=""\n    email_address=""\n  else\n    omarchy_prompt_identity || return $?\n  fi'* ]] ||
   fail "a child install asks for neither the full name nor the email, and leaves both empty"
@@ -29,7 +30,8 @@ pass "the user form asks for both passwords on a child install, and skips the id
 confirm=$(section confirm_form)
 [[ $confirm != *'${#password}'* ]] || fail "the summary no longer masks by password length"
 [[ $confirm == *'Parent password,$mask'* ]] || fail "the summary shows a parent password row on a child install"
-[[ $confirm == *'identity_rows="" # never asked'* && $confirm == *'${parent_row}${identity_rows}Hostname,'* ]] || fail "the summary drops the name and email rows on a child install"
+[[ $confirm == *'identity_rows="" # never asked'* && $confirm == *'${parent_row}${youtube_row}${identity_rows}Hostname,'* ]] || fail "the summary drops the name and email rows on a child install"
+[[ $confirm == *'Block YouTube,Yes'* ]] || fail "the summary shows the YouTube block choice on a child install"
 pass "the summary masks both passwords at a fixed width"
 
 create=$(section create_user)

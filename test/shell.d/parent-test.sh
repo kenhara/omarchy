@@ -114,6 +114,18 @@ grep -q '^  tty)' "$parent" || fail "tty is dispatched"
 grep -Fq 'systemd-detect-virt --quiet --chroot' "$parent" || fail "the running-system check sees through the install chroot's bind-mounted /run"
 pass "child installs close the text consoles, and tty reopens them"
 
+# The Limine boot-menu editor is the other escape hatch: E, then init=/bin/bash.
+# apply turns it off and installs a limine-entry-tool post-save hook so a later
+# kernel update cannot restore it; refresh-limine re-applies after it copies the
+# regular template. Regular installs never get the setting.
+[[ $apply_body == *set_limine_boot_editor* ]] || fail "apply disables the Limine boot-menu editor"
+[[ $apply_body == *install_limine_boot_editor_hook* ]] || fail "apply installs a limine-entry-tool hook so a kernel update cannot restore the editor"
+[[ $(sed -n '/^remove_posture() {/,/^}/p' "$parent") == *'set_limine_boot_editor yes'* ]] || fail "apply --remove restores the Limine editor"
+grep -Fq 'source "$OMARCHY_PATH/install/helpers/limine-boot-editor.sh"' "$parent" || fail "omarchy-parent sources the Limine boot-editor helper"
+grep -Fq 'omarchy-profile-child' "$ROOT/bin/omarchy-refresh-limine" || fail "omarchy-refresh-limine re-applies the editor setting on a child install"
+! grep -q 'editor_enabled' "$ROOT/default/limine/limine.conf" || fail "the shipped Limine template leaves the editor on for regular installs"
+pass "child installs disable the Limine boot-menu editor, and a refresh keeps it off"
+
 # Wi-Fi: joining a network is a NetworkManager settings change that Arch's
 # NetworkManager waves through for wheel only, so the kid asks the parent
 # unless parent.conf says wifi=kid. The rule template renders for the kid
@@ -257,7 +269,8 @@ fi
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 stub_bin="$test_tmp/bin"
-mkdir -p "$stub_bin" "$test_tmp/sudoers.d" "$test_tmp/rules.d"
+mkdir -p "$stub_bin" "$test_tmp/sudoers.d" "$test_tmp/rules.d" "$test_tmp/hooks"
+cp "$ROOT/default/limine/limine.conf" "$test_tmp/limine.conf"
 export CALLS="$test_tmp/calls"
 
 cat >"$stub_bin/passwd" <<'SH'
@@ -301,7 +314,8 @@ chmod +x "$stub_bin"/*
 
 run_parent() {
   : >"$CALLS"
-  OMARCHY_SUDOERS_DIR="$test_tmp/sudoers.d" OMARCHY_POLKIT_RULES_DIR="$test_tmp/rules.d" OMARCHY_PARENT_CONF="$test_tmp/parent.conf" OMARCHY_PATH="$ROOT" \
+  OMARCHY_SUDOERS_DIR="$test_tmp/sudoers.d" OMARCHY_POLKIT_RULES_DIR="$test_tmp/rules.d" OMARCHY_PARENT_CONF="$test_tmp/parent.conf" \
+  OMARCHY_LIMINE_CONF="$test_tmp/limine.conf" OMARCHY_LIMINE_EDITOR_HOOK="$test_tmp/hooks/80-omarchy-child-boot-editor" OMARCHY_PATH="$ROOT" \
   PATH="$stub_bin:$PATH" unshare --user --map-root-user bash "$parent" "$@"
 }
 
@@ -317,6 +331,8 @@ grep -qx 'wifi=parent' "$test_tmp/parent.conf" || fail "apply writes parent.conf
 grep -Fq 'polkit.Result.AUTH_ADMIN_KEEP' "$test_tmp/rules.d/45-omarchy-parent-wifi.rules" || fail "apply writes the Wi-Fi rule that asks the parent"
 [[ $(<"$CALLS") == "gpasswd -d kid wheel" ]] || fail "apply takes the kid out of wheel" "calls: $(<"$CALLS")"
 ! ls "$test_tmp/sudoers.d"/.omarchy-parent* >/dev/null 2>&1 || fail "apply leaves no stage files behind"
+grep -Eq '^editor_enabled: no$' "$test_tmp/limine.conf" || fail "apply disables the Limine boot-menu editor"
+[[ -x $test_tmp/hooks/80-omarchy-child-boot-editor ]] || fail "apply installs the limine-entry-tool post-save hook"
 pass "omarchy-parent apply installs the posture and removes the kid from wheel"
 
 STUB_GROUPS="input" run_parent apply --user kid >/dev/null || fail "a rerun succeeds"
@@ -352,6 +368,8 @@ run_parent apply --remove --user kid >/dev/null || fail "apply --remove succeeds
 [[ ! -e $test_tmp/sudoers.d/omarchy-parent && ! -e $test_tmp/sudoers.d/omarchy-parent-kid && ! -e $test_tmp/rules.d/40-omarchy-parent.rules && ! -e $test_tmp/rules.d/45-omarchy-parent-wifi.rules ]] ||
   fail "apply --remove deletes what apply wrote"
 [[ -f $test_tmp/parent.conf ]] || fail "apply --remove keeps the parent's settings"
+grep -Eq '^editor_enabled: yes$' "$test_tmp/limine.conf" || fail "apply --remove restores the Limine boot-menu editor"
+[[ ! -e $test_tmp/hooks/80-omarchy-child-boot-editor ]] || fail "apply --remove removes the post-save hook"
 pass "omarchy-parent apply --remove is the reverse of apply"
 
 export GUM_SCRIPT="$test_tmp/gum-script" GUM_COUNT="$test_tmp/gum-count"

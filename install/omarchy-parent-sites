@@ -13,10 +13,10 @@
 # tiktok.com
 #
 # Allowlist only covers Chromium-family / Firefox / Zen, via browser policy,
-# not the network. Other apps and portable browsers still reach the internet.
-# Sites often need extra names to load (khanacademy.org also needs kastatic.org);
-# add those or the page looks broken. Prefer blocklist if you just want a few
-# sites gone.
+# not the network. Other apps, portable browsers, and anything else still
+# reach the internet. Sites often need extra names (logins, CDNs, video hosts,
+# like khanacademy.org also needing kastatic.org); add those or the page looks
+# broken. Prefer blocklist if you just want a few sites gone.
 #
 # mode: allowlist
 # khanacademy.org

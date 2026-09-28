@@ -1,0 +1,33 @@
+# Kinetic Zine — Omarchy 4 base theme
+
+mode = "light"
+
+accent = "#265bd8"
+selection = "#d6d6d6"
+muted = "#626267"
+
+background = "#f5f5f5"
+dark_background = "#ededed"
+darker_background = "#ededed"
+lighter_background = "#e6e6e6"
+
+foreground = "#202024"
+dark_foreground = "#48484e"
+light_foreground = "#202024"
+bright_foreground = "#111114"
+
+red = "#ba3046"
+yellow = "#806000"
+orange = "#aa4b19"
+green = "#26704f"
+cyan = "#006d83"
+blue = "#265bd8"
+magenta = "#7134b5"
+brown = "#735451"
+
+bright_red = "#c9384c"
+bright_yellow = "#8e6800"
+bright_green = "#267d56"
+bright_cyan = "#007993"
+bright_blue = "#2462f6"
+bright_magenta = "#8846d0"

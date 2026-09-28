@@ -1,0 +1,33 @@
+# Tidepool Workshop — Omarchy 4 base theme
+
+mode = "light"
+
+accent = "#006c74"
+selection = "#b9ded7"
+muted = "#607b78"
+
+background = "#e7f6ee"
+dark_background = "#dff1f3"
+darker_background = "#dff1f3"
+lighter_background = "#d2eee5"
+
+foreground = "#173c43"
+dark_foreground = "#365d60"
+light_foreground = "#173c43"
+bright_foreground = "#09272d"
+
+red = "#c94f43"
+yellow = "#a87800"
+orange = "#d76d38"
+green = "#3f8455"
+cyan = "#008c95"
+blue = "#2677a8"
+magenta = "#8660a5"
+brown = "#80614c"
+
+bright_red = "#e36a5a"
+bright_yellow = "#c68e00"
+bright_green = "#4a9c64"
+bright_cyan = "#00a5b0"
+bright_blue = "#2d8cc6"
+bright_magenta = "#9e71c3"

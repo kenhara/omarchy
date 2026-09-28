@@ -1,0 +1,33 @@
+# Fossil Field Notes — Omarchy 4 base theme
+
+mode = "light"
+
+accent = "#94411f"
+selection = "#d8bd8f"
+muted = "#7c6d5a"
+
+background = "#f4e6c9"
+dark_background = "#ead6b4"
+darker_background = "#ead6b4"
+lighter_background = "#e8d5ae"
+
+foreground = "#3b2d26"
+dark_foreground = "#59483a"
+light_foreground = "#3b2d26"
+bright_foreground = "#211913"
+
+red = "#b54b3e"
+yellow = "#987000"
+orange = "#c87532"
+green = "#5f7d43"
+cyan = "#3d7d7b"
+blue = "#347480"
+magenta = "#795d83"
+brown = "#805437"
+
+bright_red = "#9f3f32"
+bright_yellow = "#715400"
+bright_green = "#4f6e3b"
+bright_cyan = "#326967"
+bright_blue = "#2f6670"
+bright_magenta = "#684f72"

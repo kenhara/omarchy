@@ -1,0 +1,33 @@
+# Festival Loom — Omarchy 4 base theme
+
+mode = "light"
+
+accent = "#ad285b"
+selection = "#e8c8b0"
+muted = "#796a70"
+
+background = "#fff0dc"
+dark_background = "#f7e4cd"
+darker_background = "#f7e4cd"
+lighter_background = "#f5dcc7"
+
+foreground = "#342b3d"
+dark_foreground = "#554654"
+light_foreground = "#342b3d"
+bright_foreground = "#1e1726"
+
+red = "#bd4058"
+yellow = "#9b7300"
+orange = "#d36c32"
+green = "#4e7f4d"
+cyan = "#187d83"
+blue = "#326aa8"
+magenta = "#9a4d96"
+brown = "#875744"
+
+bright_red = "#e05b78"
+bright_yellow = "#b78800"
+bright_green = "#5c965b"
+bright_cyan = "#1c949b"
+bright_blue = "#3b7dc6"
+bright_magenta = "#b65bb1"

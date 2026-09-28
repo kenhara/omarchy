@@ -1,0 +1,33 @@
+# Lantern Menagerie — Omarchy 4 base theme
+
+mode = "dark"
+
+accent = "#f0ad37"
+selection = "#453056"
+muted = "#9b83a5"
+
+background = "#21172f"
+dark_background = "#171020"
+darker_background = "#171020"
+lighter_background = "#30213f"
+
+foreground = "#f7e8c4"
+dark_foreground = "#c8b3c0"
+light_foreground = "#f7e8c4"
+bright_foreground = "#fff7df"
+
+red = "#df6654"
+yellow = "#d89a2b"
+orange = "#e37a43"
+green = "#65a66c"
+cyan = "#58aaa5"
+blue = "#657bc0"
+magenta = "#9b69b6"
+brown = "#9a6650"
+
+bright_red = "#f07c68"
+bright_yellow = "#ffb633"
+bright_green = "#77c47f"
+bright_cyan = "#68c9c3"
+bright_blue = "#7791e3"
+bright_magenta = "#b77cd7"

@@ -1,0 +1,33 @@
+# Signal Garden — Omarchy 4 base theme
+
+mode = "dark"
+
+accent = "#35c2c5"
+selection = "#1c3a43"
+muted = "#6f8990"
+
+background = "#0c1a25"
+dark_background = "#08131b"
+darker_background = "#08131b"
+lighter_background = "#132b34"
+
+foreground = "#e8f3df"
+dark_foreground = "#aac1b6"
+light_foreground = "#e8f3df"
+bright_foreground = "#f7ffe9"
+
+red = "#db5d61"
+yellow = "#c3a52d"
+orange = "#d67843"
+green = "#78a83f"
+cyan = "#35aeb1"
+blue = "#4f83c8"
+magenta = "#9068c5"
+brown = "#84665a"
+
+bright_red = "#ef7778"
+bright_yellow = "#e6c335"
+bright_green = "#8ec64a"
+bright_cyan = "#3fcdd1"
+bright_blue = "#5d9bec"
+bright_magenta = "#aa7be8"

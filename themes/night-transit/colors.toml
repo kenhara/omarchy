@@ -1,0 +1,33 @@
+# Night Transit — Omarchy 4 base theme
+
+mode = "dark"
+
+accent = "#f06f65"
+selection = "#245168"
+muted = "#7896a3"
+
+background = "#112b4d"
+dark_background = "#0b203b"
+darker_background = "#0b203b"
+lighter_background = "#193c5b"
+
+foreground = "#f8e5c5"
+dark_foreground = "#b8c9c5"
+light_foreground = "#f8e5c5"
+bright_foreground = "#fff4dc"
+
+red = "#d55751"
+yellow = "#d39a30"
+orange = "#e17b3b"
+green = "#55905c"
+cyan = "#39a3aa"
+blue = "#4b82c5"
+magenta = "#8e67ae"
+brown = "#8b604d"
+
+bright_red = "#f07a6d"
+bright_yellow = "#f9b639"
+bright_green = "#64aa6d"
+bright_cyan = "#43c0c9"
+bright_blue = "#5899e8"
+bright_magenta = "#a87acd"

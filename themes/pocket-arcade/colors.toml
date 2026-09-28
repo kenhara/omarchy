@@ -1,0 +1,34 @@
+# Pocket Arcade — Omarchy 4 palette
+# Pocket Studio / Label Deck
+
+mode = "dark"
+
+accent = "#db5b78"
+selection = "#1d2948"
+muted = "#74758f"
+
+background = "#0b1024"
+dark_background = "#060a17"
+darker_background = "#03050b"
+lighter_background = "#121a34"
+
+foreground = "#eee7e4"
+dark_foreground = "#b1acc0"
+light_foreground = "#f8f1ed"
+bright_foreground = "#fff7f0"
+
+red = "#db5b78"
+yellow = "#dab968"
+orange = "#e27a83"
+green = "#4f999c"
+cyan = "#57b8b7"
+blue = "#6484c8"
+magenta = "#a96eae"
+brown = "#8b6d9c"
+
+bright_red = "#f16f8b"
+bright_yellow = "#efd17c"
+bright_green = "#68bbb8"
+bright_cyan = "#79d0cc"
+bright_blue = "#83a3e5"
+bright_magenta = "#c78ac8"

@@ -49,6 +49,9 @@ gated=$(grep -A1 -E '^if \(\( EUID == 0 \)\); then$' "$dns" || true)
 # The no-argument path only reads DNS config, so exercise the privileged phase
 # directly when the suite is root and as namespaced root otherwise. This reaches
 # tr while EUID is 0 without giving an ordinary test run any host privileges.
+# OMARCHY_PATH must point at this checkout: omarchy-dns sources
+# install/helpers/dns.sh from it, and the default /usr/share/omarchy is not
+# present in a bare test VM. The probe is about PATH, not about the packaged tree.
 root_runner=()
 if (( EUID != 0 )); then
   root_runner=(unshare --user --map-root-user)
@@ -70,7 +73,7 @@ SH
     chmod +x "$poison_dir/$helper"
   done
 
-  if ! PATH="$poison_dir:$PATH" "${root_runner[@]}" bash "$dns" </dev/null >/dev/null 2>&1; then
+  if ! PATH="$poison_dir:$PATH" OMARCHY_PATH="$ROOT" "${root_runner[@]}" bash "$dns" </dev/null >/dev/null 2>&1; then
     rm -rf "$poison_dir"
     fail "root omarchy-dns failed its read-only trusted-PATH probe"
   fi
@@ -127,6 +130,7 @@ chmod +x "$stub_bin/sudo"
 elevation_for() {
   : >"$test_tmp/elevation"
   ELEVATION_LOG="$test_tmp/elevation" \
+  OMARCHY_PATH="${OMARCHY_PATH:-$ROOT}" \
   PATH="$stub_bin:$PATH" \
     bash "$dns" "$1" </dev/null >/dev/null
   cat "$test_tmp/elevation"

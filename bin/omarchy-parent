@@ -96,8 +96,10 @@ if (( EUID != 0 )); then
 fi
 
 # install_sudoers, SUDOERS_DIR, and the parent.conf helpers (PARENT_CONF,
-# conf_get, conf_set, conf_document), shared with the feature commands.
+# conf_get, conf_set, conf_document), shared with the feature commands. The
+# Limine boot-editor helper is the same idea for /boot/limine.conf.
 source "$OMARCHY_PATH/install/helpers/parent.sh"
+source "$OMARCHY_PATH/install/helpers/limine-boot-editor.sh"
 POLKIT_RULES_DIR="${OMARCHY_POLKIT_RULES_DIR:-/etc/polkit-1/rules.d}"
 
 # The browser-accent grant etc/sudoers.d/omarchy-theme-browser gives wheel,
@@ -268,6 +270,11 @@ apply_posture() {
   fi
 
   mask_consoles
+
+  # Pressing E at the Limine menu lets a kid append init=/bin/bash and remount
+  # the disk; LUKS does not stop that because the kid's password unlocks it.
+  set_limine_boot_editor no
+  install_limine_boot_editor_hook
 }
 
 remove_posture() {
@@ -275,6 +282,8 @@ remove_posture() {
   rm -f "$SUDOERS_DIR/omarchy-parent" "$POLKIT_RULES_DIR/40-omarchy-parent.rules" "$POLKIT_RULES_DIR/$WIFI_RULE_NAME"
   [[ -n $user ]] && rm -f "$SUDOERS_DIR/omarchy-parent-$user"
   unmask_consoles
+  set_limine_boot_editor yes
+  remove_limine_boot_editor_hook
   echo "Parental sudo and polkit configuration removed and the text consoles reopened. wheel membership and $PARENT_CONF are left as they are."
 }
 

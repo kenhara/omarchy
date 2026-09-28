@@ -40,6 +40,8 @@ chmod +x "$mock_bin"/*
 export PATH="$mock_bin:$ROOT/bin:$PATH"
 export HOME="$test_home"
 export OMARCHY_PATH="$ROOT"
+export OMARCHY_PARENT_APPS_SHOW="$test_tmp/apps-show"
+export OMARCHY_PARENT_APPS_HIDE="$test_tmp/apps-hide"
 
 adult_marker="$test_tmp/profile-default"
 printf 'default\n' >"$adult_marker"
@@ -74,6 +76,29 @@ OMARCHY_PROFILE_FILE="$child_marker" omarchy-refresh-applications
 [[ ! -e $test_home/.local/share/applications/WhatsApp.desktop ]] ||
   fail "a child profile removes a WhatsApp launcher that skel planted"
 pass "a child profile removes hidden launchers that skel planted"
+
+printf 'WhatsApp\n' >"$OMARCHY_PARENT_APPS_SHOW"
+cp "$ROOT/applications/WhatsApp.desktop" "$test_home/.local/share/applications/WhatsApp.desktop"
+OMARCHY_PROFILE_FILE="$child_marker" omarchy-refresh-applications
+[[ -f $test_home/.local/share/applications/WhatsApp.desktop ]] ||
+  fail "a parent show override keeps WhatsApp through refresh"
+pass "a parent show override survives omarchy-refresh-applications"
+
+printf 'YouTube\n' >"$OMARCHY_PARENT_APPS_HIDE"
+: >"$OMARCHY_PARENT_APPS_SHOW"
+OMARCHY_PROFILE_FILE="$child_marker" omarchy-refresh-applications
+[[ ! -e $test_home/.local/share/applications/YouTube.desktop ]] ||
+  fail "a parent hide override drops YouTube even when it is not in the shipped list"
+[[ ! -e $test_home/.local/share/applications/WhatsApp.desktop ]] ||
+  fail "clearing the show override hides WhatsApp again"
+pass "a parent hide override drops a launcher the shipped list left alone"
+
+printf 'WhatsApp\n' >"$OMARCHY_PARENT_APPS_SHOW"
+printf 'WhatsApp\n' >"$OMARCHY_PARENT_APPS_HIDE"
+OMARCHY_PROFILE_FILE="$child_marker" omarchy-refresh-applications
+[[ -f $test_home/.local/share/applications/WhatsApp.desktop ]] ||
+  fail "show wins when a name is in both override files"
+pass "show wins over hide for the same launcher"
 
 grep -Fq 'omarchy-refresh-applications' "$ROOT/bin/omarchy-reinstall-configs" ||
   fail "omarchy-reinstall-configs refreshes launchers after replaying skel"

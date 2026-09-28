@@ -98,6 +98,15 @@ bar from the CLI — `use | reset | defaults | position | transparent | put |
 move | set`, with placement flags such as `--section` and `--index`.
 The lower-level IPC methods remain available through `omarchy-shell shell ...`.
 
+On a child install the third-party scan only emits a manifest when the
+directory name matches the manifest id and that id is listed in
+`/etc/omarchy/plugins-parent-approved`. Unapproved or impersonating
+directories stay on disk but are not loaded. Built-in `omarchy.*` plugins
+are not filtered. `omarchy-plugin-catalog` uses the same scan so bar
+selection cannot offer a bar the shell will not load. Approval records an
+id, not a review of the plugin's code; adding or enabling asks for the
+parent password once and then drops the sudo ticket. `omarchy plugin update` is not gated.
+
 ## Elsewhen
 
 Elsewhen (`omacom.elsewhen`) ships in the `elsewhen` package at `/usr/share/omarchy/shell/plugins/omacom.elsewhen`, where the shell discovers it automatically. New installs place it immediately before the clock; the migration uses `omarchy bar put omacom.elsewhen --before omarchy.clock`, which preserves an existing placement and uses Elsewhen's normal right-side placement if the clock is absent. Existing plugin directories and symlinks are left intact. The normal update flow restarts the shell after migrations; the migration does not interrupt plugin loading with an immediate restart. With no shell to ask, as in an update from a TTY, the migration installs the package and skips the placement rather than failing the update; `omarchy bar put omacom.elsewhen --before omarchy.clock` places the widget later.

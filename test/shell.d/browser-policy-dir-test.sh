@@ -275,6 +275,112 @@ fi
 [[ -d $dir_dist/policies.json ]] || fail "Firefox policy install leaves a planted policies.json directory in place"
 pass "Firefox policy install does not write into a planted policies.json directory"
 
+dns_dir=$test_tmp/dns-managed
+mkdir -p "$dns_dir"
+as_root() { unprivileged_as_root "$@"; }
+browser_policy_install_dns "$dns_dir" || fail "dns policy writes into a writable policy directory"
+grep -F '"DnsOverHttpsMode": "secure"' "$dns_dir/dns.json" >/dev/null || fail "dns policy forces DoH"
+grep -F 'https://family.cloudflare-dns.com/dns-query{?dns}' "$dns_dir/dns.json" >/dev/null ||
+  fail "dns policy pins Chromium DoH to the family endpoint"
+mode=$(stat -c '%a' "$dns_dir/dns.json")
+[[ $mode == "644" ]] || fail "dns policy creates a root-mode policy file" "mode=$mode"
+pass "dns policy writes a 0644 dns.json"
+
+printf 'original\n' >"$test_tmp/dns-pwn"
+rm -f "$dns_dir/dns.json"
+ln -s "$test_tmp/dns-pwn" "$dns_dir/dns.json"
+as_root() { unprivileged_as_root "$@"; }
+browser_policy_install_dns "$dns_dir" || fail "dns policy replaces a planted dns.json symlink"
+[[ -f $dns_dir/dns.json && ! -L $dns_dir/dns.json ]] ||
+  fail "dns policy unlinks a planted dns.json symlink instead of writing through it"
+grep -Fxq 'original' "$test_tmp/dns-pwn" || fail "dns policy leaves the symlink target unchanged"
+pass "dns policy does not follow a planted dns.json symlink"
+
+if (( EUID != 0 )); then
+  rootish=$test_tmp/root-owned-dns
+  mkdir -p "$rootish"
+  chmod 555 "$rootish"
+  as_root() { "$@"; }
+  if browser_policy_install_dns "$rootish" 2>/dev/null; then
+    fail "dns policy must not silently succeed when the dest dir is not writable"
+  fi
+  [[ ! -e $rootish/dns.json ]] || fail "dns policy must not leave a file in an unwritable dir"
+  as_root() {
+    chmod 755 "$rootish"
+    unprivileged_as_root "$@"
+  }
+  browser_policy_install_dns "$rootish" || fail "dns policy writes through as_root into a root-owned dir"
+  [[ -f $rootish/dns.json ]] || fail "as_root dns policy created dns.json"
+  pass "dns policy writes through as_root against a non-writable directory"
+else
+  pass "running as root; skipping the non-root dns.json write probe"
+fi
+
+fx_merge=$test_tmp/fx-merge
+mkdir -p "$fx_merge"
+cp "$ROOT/default/firefox/policies.json" "$fx_merge/policies.json"
+as_root() { unprivileged_as_root "$@"; }
+browser_policy_firefox_merge_doh "$fx_merge/policies.json" families || fail "Firefox DoH merge writes locked DNSOverHTTPS"
+python3 - "$fx_merge/policies.json" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+assert data["policies"]["DNSOverHTTPS"] == {
+    "Enabled": True,
+    "ProviderURL": "https://family.cloudflare-dns.com/dns-query",
+    "Locked": True,
+    "Fallback": False,
+}
+prefs = data["policies"]["Preferences"]
+assert "network.trr.mode" not in prefs
+assert prefs["media.ffmpeg.vaapi.enabled"]["Value"] is True
+PY
+browser_policy_install_dns "$dns_dir" security || fail "dns policy can pin the security endpoint"
+grep -F 'https://security.cloudflare-dns.com/dns-query{?dns}' "$dns_dir/dns.json" >/dev/null ||
+  fail "security mode pins Chromium DoH to the security endpoint"
+browser_policy_firefox_merge_doh "$fx_merge/policies.json" security || fail "Firefox DoH merge can pin security"
+python3 - "$fx_merge/policies.json" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+assert data["policies"]["DNSOverHTTPS"]["ProviderURL"] == "https://security.cloudflare-dns.com/dns-query"
+PY
+browser_policy_firefox_merge_doh "$fx_merge/policies.json" off || fail "Firefox DoH merge can clear the lock"
+python3 - "$fx_merge/policies.json" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+assert "DNSOverHTTPS" not in data["policies"]
+prefs = data["policies"]["Preferences"]
+assert "network.trr.mode" not in prefs
+assert prefs["media.ffmpeg.vaapi.enabled"]["Value"] is True
+PY
+pass "Firefox DoH merge keeps VAAPI prefs and can be removed"
+
+# A Chromium-dir failure must not skip Firefox/Zen.
+apply_fail=$test_tmp/apply-fail
+mkdir -p "$apply_fail/chrome" "$apply_fail/firefox"
+chmod 555 "$apply_fail/chrome"
+cp "$ROOT/default/firefox/policies.json" "$apply_fail/firefox/policies.json"
+as_root() { unprivileged_as_root "$@"; }
+BROWSER_POLICY_MANAGED_DIRS=("$apply_fail/chrome")
+BROWSER_POLICY_FIREFOX_DIRS=("$apply_fail/firefox")
+if browser_policy_apply_doh families; then
+  fail "apply_doh reports a Chromium write failure"
+fi
+python3 - "$apply_fail/firefox/policies.json" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+assert data["policies"]["DNSOverHTTPS"]["ProviderURL"] == "https://family.cloudflare-dns.com/dns-query"
+assert data["policies"]["DNSOverHTTPS"]["Locked"] is True
+PY
+[[ ! -e $apply_fail/chrome/dns.json ]] || fail "a failed Chromium write left no dns.json"
+pass "apply_doh keeps going after the first browser-policy failure"
+
+grep -F 'omarchy-parent-dns apply' "$ROOT/bin/omarchy-install-browser" >/dev/null ||
+  fail "later browser installs re-apply family DNS through omarchy-parent-dns apply"
+if grep -E 'browser_policy_apply_doh(_off)? \|\| true' "$ROOT/bin/omarchy-install-browser" >/dev/null; then
+  fail "omarchy-install-browser must not hide a DoH policy failure behind || true"
+fi
+pass "omarchy-install-browser reapplies family DNS on a locked child install"
+
 grep -F 'exit "$failed"' "$ROOT/bin/omarchy-theme-set-browser" >/dev/null ||
   fail "omarchy-theme-set-browser exits non-zero when a policy write fails"
 pass "omarchy-theme-set-browser exits non-zero when a policy write fails"

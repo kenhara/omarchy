@@ -166,3 +166,150 @@ browser_policy_setup_firefox_distribution() {
   browser_policy_purge_dir "$distribution_dir"
   browser_policy_install_firefox_policies "$distribution_dir" "$policies"
 }
+
+# Chromium-family managed dirs accept multiple JSON files; dns.json sits
+# beside color.json and pins the browser's own DNS-over-HTTPS to the
+# matching Cloudflare Families/Security endpoint so a child install cannot
+# pick another DoH provider. Write through as_root the same way Firefox
+# policies.json is installed: stage a temp file, then `install -T` so a
+# planted symlink is replaced rather than followed.
+browser_policy_doh_url() {
+  case "${1:-}" in
+    families|on) printf '%s\n' "https://family.cloudflare-dns.com/dns-query" ;;
+    security) printf '%s\n' "https://security.cloudflare-dns.com/dns-query" ;;
+    *) return 1 ;;
+  esac
+}
+
+browser_policy_doh_template() {
+  local url
+  url=$(browser_policy_doh_url "$1") || return 1
+  printf '%s{?dns}\n' "$url"
+}
+
+browser_policy_install_dns() {
+  local policy_dir=$1
+  local mode=${2:-families}
+  local dest=$policy_dir/dns.json
+  local tmp template
+
+  [[ -d $policy_dir && ! -L $policy_dir ]] || return 0
+  template=$(browser_policy_doh_template "$mode") || return 1
+
+  tmp=$(mktemp) || return 1
+  printf '{"DnsOverHttpsMode": "secure", "DnsOverHttpsTemplates": "%s"}\n' "$template" >"$tmp"
+
+  if [[ -L $dest || -d $dest ]]; then
+    if ! as_root rm -rf -- "$dest"; then
+      rm -f "$tmp"
+      return 1
+    fi
+  fi
+
+  if as_root install -m 0644 -o root -g root -T "$tmp" "$dest"; then
+    rm -f "$tmp"
+    return 0
+  fi
+
+  rm -f "$tmp"
+  return 1
+}
+
+browser_policy_remove_dns() {
+  local policy_dir=$1
+  local dest=$policy_dir/dns.json
+
+  [[ -e $dest || -L $dest ]] || return 0
+  as_root rm -rf -- "$dest"
+}
+
+# Firefox has a single policies.json (no drop-ins). Merge locked
+# DNSOverHTTPS (pinned Families/Security URL, or cleared) into whatever
+# is already there so VAAPI and the other stock prefs survive. python3
+# is the JSON writer: bash cannot merge objects without breaking a
+# parent-edited file.
+browser_policy_firefox_merge_doh() {
+  local file=$1
+  local mode=${2:-off}
+  local url=""
+  local tmp
+
+  [[ -f $file && ! -L $file ]] || return 0
+
+  if [[ $mode != off ]]; then
+    url=$(browser_policy_doh_url "$mode") || return 1
+  fi
+
+  tmp=$(mktemp) || return 1
+  if ! python3 - "$file" "$mode" "$url" "$tmp" <<'PY'
+import json
+import sys
+
+src, mode, url, dest = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+try:
+    with open(src, encoding="utf-8") as fh:
+        data = json.load(fh)
+except json.JSONDecodeError:
+    sys.exit(1)
+if not isinstance(data, dict):
+    sys.exit(1)
+policies = data.setdefault("policies", {})
+if not isinstance(policies, dict):
+    sys.exit(1)
+prefs = policies.get("Preferences")
+if prefs is not None and not isinstance(prefs, dict):
+    sys.exit(1)
+if mode == "off":
+    policies.pop("DNSOverHTTPS", None)
+else:
+    policies["DNSOverHTTPS"] = {
+        "Enabled": True,
+        "ProviderURL": url,
+        "Locked": True,
+        "Fallback": False,
+    }
+if isinstance(prefs, dict):
+    prefs.pop("network.trr.mode", None)
+    prefs.pop("network.trr.uri", None)
+    if not prefs:
+        policies.pop("Preferences", None)
+with open(dest, "w", encoding="utf-8") as fh:
+    json.dump(data, fh, indent=2)
+    fh.write("\n")
+PY
+  then
+    rm -f "$tmp"
+    return 1
+  fi
+  if as_root install -m 644 -o root -g root -T "$tmp" "$file"; then
+    rm -f "$tmp"
+    return 0
+  fi
+  rm -f "$tmp"
+  return 1
+}
+
+browser_policy_apply_doh() {
+  local mode="${1:-families}"
+  local dir status=0
+  for dir in "${BROWSER_POLICY_MANAGED_DIRS[@]}"; do
+    [[ -d $dir && ! -L $dir ]] || continue
+    browser_policy_install_dns "$dir" "$mode" || status=1
+  done
+  for dir in "${BROWSER_POLICY_FIREFOX_DIRS[@]}"; do
+    browser_policy_firefox_merge_doh "$dir/policies.json" "$mode" || status=1
+  done
+  return "$status"
+}
+
+browser_policy_clear_doh() {
+  local dir status=0
+  for dir in "${BROWSER_POLICY_MANAGED_DIRS[@]}"; do
+    [[ -e $dir/dns.json || -L $dir/dns.json ]] || continue
+    browser_policy_remove_dns "$dir" || status=1
+  done
+  for dir in "${BROWSER_POLICY_FIREFOX_DIRS[@]}"; do
+    browser_policy_firefox_merge_doh "$dir/policies.json" off || status=1
+  done
+  return "$status"
+}

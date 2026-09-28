@@ -1,0 +1,162 @@
+#!/bin/bash
+
+# omarchy:summary=Block or allow sites for the kid account
+# omarchy:args=[block|allow|list|apply|edit|seed] [DOMAIN...]
+# omarchy:examples=sudo omarchy-parent sites edit | sudo omarchy-parent sites block youtube.com | omarchy parent sites allow youtube.com | sudo omarchy-parent sites list
+# omarchy:requires-sudo=true
+
+# Parent-controlled website list on a child install. Nothing is blocked until
+# a parent uncomments names or runs block/allow. sudo asks for the parent
+# password. Does not depend on family DNS: systemd-resolved still honours the
+# hosts sinkhole in blocklist mode, and Chromium-family URLBlocklist catches
+# the browser even when it uses DoH. Allowlist is browser-only.
+
+set -euo pipefail
+
+OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+
+fail() {
+  echo "Error: $1" >&2
+  exit 1
+}
+
+source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
+source "$OMARCHY_PATH/install/helpers/parent-sites.sh"
+
+usage() {
+  cat <<USAGE
+Usage: omarchy-parent sites [block|allow|list|apply|edit] [DOMAIN...]
+
+edit    Open the website list in the editor and apply on save
+block   Stop the kid opening DOMAIN (blocklist) or drop it from the allowlist
+allow   Take DOMAIN off the block list, or add it to the allowlist
+list    Print the mode and active domains (the same as a bare \`sites\`)
+apply   Re-write the hosts sinkhole and browser policy from the saved list
+USAGE
+}
+
+require_child_install() {
+  omarchy-profile-child || fail "this is not a child install; omarchy-parent sites only applies to the kids mode profile"
+}
+
+print_list() {
+  local domain mode
+  mode=$(parent_sites_mode)
+  printf 'mode=%s\n' "$mode"
+  if ! parent_sites_list | grep -q .; then
+    echo "No sites are listed."
+    return
+  fi
+  while IFS= read -r domain || [[ -n $domain ]]; do
+    printf '%s\n' "$domain"
+  done < <(parent_sites_list)
+}
+
+parse_domain() {
+  local raw="$1" domain
+  if domain=$(parent_sites_normalize "$raw"); then
+    printf '%s\n' "$domain"
+    return 0
+  fi
+  if [[ ${raw,,} == "youtube" ]]; then
+    echo "Error: '$raw' is not a domain; did you mean youtube.com? (sudo omarchy-parent sites block youtube.com)" >&2
+  else
+    echo "Error: '$raw' is not a domain (hostnames only, like youtube.com)" >&2
+  fi
+  return 1
+}
+
+add_domains() {
+  local raw domain
+  (( $# )) || fail "sites $command needs a domain, like youtube.com"
+  for raw in "$@"; do
+    domain=$(parse_domain "$raw") || exit 1
+    parent_sites_add "$domain"
+  done
+}
+
+remove_domains() {
+  local raw domain
+  (( $# )) || fail "sites $command needs a domain, like youtube.com"
+  for raw in "$@"; do
+    domain=$(parse_domain "$raw") || exit 1
+    parent_sites_remove "$domain"
+  done
+}
+
+edit_list() {
+  local editor
+  parent_sites_ensure_file
+  # omarchy-launch-editor execs, so apply would never run. Use the same TUI
+  # editors it would pick, inline, then apply when the editor quits.
+  editor=$(parent_sites_editor)
+  "$editor" "$PARENT_SITES_FILE"
+  parent_sites_apply
+}
+
+case "${1:-list}" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
+  block|allow|list|apply|edit|seed|"")
+    ;;
+  *)
+    echo "Unknown command: $1" >&2
+    usage >&2
+    exit 1
+    ;;
+esac
+
+if (( EUID != 0 )); then
+  status=0
+  sudo env OMARCHY_PATH="$OMARCHY_PATH" HOME="${HOME:-}" \
+    OMARCHY_PARENT_SITES_FILE="${OMARCHY_PARENT_SITES_FILE:-}" \
+    OMARCHY_PARENT_SITES_HOSTS="${OMARCHY_PARENT_SITES_HOSTS:-}" \
+    OMARCHY_PARENT_SITES_TEMPLATE="${OMARCHY_PARENT_SITES_TEMPLATE:-}" \
+    OMARCHY_PARENT_SITES_YOUTUBE="${OMARCHY_PARENT_SITES_YOUTUBE:-}" \
+    "$0" "$@" || status=$?
+  sudo -k
+  exit "$status"
+fi
+
+require_child_install
+
+command="${1:-list}"
+shift || true
+
+case "$command" in
+  list)
+    parent_sites_ensure_file
+    print_list
+    ;;
+  seed)
+    parent_sites_ensure_file
+    ;;
+  apply)
+    parent_sites_apply
+    print_list
+    ;;
+  edit)
+    edit_list
+    print_list
+    ;;
+  block)
+    if [[ $(parent_sites_mode) == allowlist ]]; then
+      remove_domains "$@"
+    else
+      add_domains "$@"
+    fi
+    parent_sites_apply
+    print_list
+    ;;
+  allow)
+    if [[ $(parent_sites_mode) == allowlist ]]; then
+      add_domains "$@"
+    else
+      remove_domains "$@"
+    fi
+    parent_sites_apply
+    print_list
+    ;;
+esac

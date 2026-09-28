@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Name=Scratch
+Exec=omarchy-launch-webapp https://scratch.mit.edu/
+Terminal=false
+Type=Application
+Icon=scratch
+StartupNotify=true

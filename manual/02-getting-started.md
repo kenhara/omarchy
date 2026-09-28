@@ -20,9 +20,19 @@ Now you're ready to Omarchy!
 
 The full-disk encryption won't allow you to enter the password from a Bluetooth keyboard at startup. Just like you can't use a Bluetooth keyboard to enter the BIOS on a PC. You'll need a keyboard that either uses a 2.4ghz dongle or a cable (which is much nicer for latency anyway!). I personally love the [Lofree Flow84](https://www.lofree.co/products/lofree-flow-the-smoothest-mechanical-keyboard)!
 
+### Setting up for a child
+
+The installer's very first question is who the computer is for: you, your child, or another owner. Pick _My child_ when the machine is **for one kid only**: Omarchy creates a single user account (the kid's), not a separate parent login. The computer is the kid's dedicated machine; parents use the **parent password** to unlock the screen, log in after a logout, and do anything that asks for an administrator — there is no second desktop for parents.
+
+On that path the installer asks for two passwords instead of one. The **kid password** is the everyday one: it logs in, unlocks the screen, and unlocks the disk at boot. The **parent password** is what `sudo`, updates, installs, and system prompts ask for, so keep it from the kid. It unlocks the disk too, so a parent can always get in and reset a forgotten kid password. The login and lock screens show the kid's name and a short reminder that either password works. The kid's account is deliberately not an administrator; see [child installs](48-security.md) for what that means day to day.
+
+A child install also ships a kid-oriented app set — GCompris, LeoCAD, and launchers for Khan Academy, Scratch, Grokipedia, and Wikipedia — and hides adult comms and YouTube. Battle.net is not offered: the installer refuses on a child profile, and a leftover launcher is removed. Omarchy's own install commands ask for the parent password. The machine is still a full Linux box with a terminal; the extra apps are additions, not a locked-down kiosk. See [child installs](48-security.md#child-installs).
+
+Each step that needs administrator rights asks for the parent password; an install that pulls in dependencies may ask more than once. Already-installed packages and a canceled picker ask nothing.
+
 ### Installing for another owner
 
-If you're setting up a machine for someone else — a family member, a new employee, a buyer — you shouldn't be answering the personal questions on their behalf. Hit `Ctrl + C` on the very first screen of the installer (the keyboard selection), and Omarchy will offer to prepare the machine for another owner instead. The system installs right away, but all the personal setup — keyboard layout, username, password — is deferred until the machine boots for the first time. The drive is still encrypted by default, and the password the new owner picks on that first boot becomes the encryption password too. (A machine you've already been using can be handed over without a reinstall too — see [resetting the computer](48-security.md).)
+If you're setting up a machine for someone else — a family member, a new employee, a buyer — you shouldn't be answering the personal questions on their behalf. Pick _Another owner_ at the installer's first question, and Omarchy will prepare the machine for another owner instead. The system installs right away, but all the personal setup — keyboard layout, username, password — is deferred until the machine boots for the first time. The drive is still encrypted by default, and the password the new owner picks on that first boot becomes the encryption password too. (A machine you've already been using can be handed over without a reinstall too — see [resetting the computer](48-security.md).)
 
 ### Unattended installs
 

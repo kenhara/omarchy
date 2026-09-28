@@ -214,7 +214,7 @@ It only does the things `/etc/skel` can't:
   from `/etc/vconsole.conf`; no per-user Hyprland config rewrite is needed.
 - `xdg-settings set default-web-browser chromium.desktop` and
   `xdg-mime default HEY.desktop x-scheme-handler/mailto` (XDG-aware paths).
-- `omarchy-refresh-applications` (composes generated `.desktop` launchers).
+- `omarchy-refresh-applications` (composes generated `.desktop` launchers; on a child install it drops `install/omarchy-child-hidden-applications`, honouring parent overrides in `/etc/omarchy/parent-apps-show` and `parent-apps-hide`).
 - Sources `install/user/all.sh` — theme, chromium, git, xcompose, mise,
   keyring, per-user hardware quirks (asus mic/mixer, framework f13 audio, …).
 - On `--first-install`, marks every shipped user migration as already applied
@@ -288,6 +288,12 @@ and/or a working user systemd instance:
   first login and opens the cheatsheet when clicked. The caller runs
   `omarchy-notification-wait` once before this and the Wi-Fi step, so both
   toasts land on a live notification server.
+- `install/user/first-run/kids-plugins.sh` — on a child install only, a
+  one-shot toast that opens the Kids category on the Omarchy plugin store
+  when clicked.
+- `install/user/first-run/kids-sites.sh` — on a child install only, a
+  one-shot toast that opens `omarchy-parent sites edit` (parent password)
+  when clicked.
 - `install/user/first-run/wifi.sh` — Wi-Fi/update toasts (waits detached on
   `nm-online` so the update prompt only lands once there is a connection).
 
@@ -309,6 +315,10 @@ the legacy finalization marker from `~/.local/state/omarchy/` into `done/`.
 finalization. It sources:
 
 - `install/config/all.sh` — theme links, lockout limits, lockscreen PAM,
+  the child install's parental posture (`omarchy-parent apply`), family DNS
+  (`omarchy-parent-dns on` on child installs, which also pins browser DoH and
+  enables `omarchy-parent-dns-filter.service` for the kid-uid egress table),
+  child-install website list (`omarchy-parent-sites`, inert until a parent edits it),
   powerprofilesctl shebang fix, SSH command path and keepalive, docker setup,
   Snapper retention, locate index tuning, service enablement, firewall.
 - `install/hardware/all.sh` via `omarchy-apply-hardware` — vendor- and
@@ -320,9 +330,17 @@ finalization. It sources:
 Logging goes to `/var/log/omarchy-install.log` via
 `install/helpers/logging.sh`.
 
+`--profile <default|child>` records the install profile as one word in `/etc/omarchy/profile` and exports it as `OMARCHY_INSTALL_PROFILE` for the leaves. `child` is kids mode, picked by the installer's "Who is this computer for?" question. At runtime `omarchy-profile-child` reads the marker for menu guards, scripts, and first-boot provisioning; a machine installed before profiles existed has no marker and counts as `default`. The marker lives in `/etc`, so a factory reset's `@factory` clone keeps a child machine a child machine.
+
+On a child install, parent-approved third-party plugin ids are recorded in `/etc/omarchy/plugins-parent-approved` (root-owned, world-readable) by the hidden `omarchy-plugin-approve` command (`sudo omarchy-plugin-approve <id>`). Adding or enabling a third-party plugin asks for the parent password once, then drops the sudo ticket. That list is a soft control over which plugin ids the shell scan and catalog will load, not a lock on plugin code; `omarchy plugin update` is not gated.
+
 The package lists the ISO pacstraps live at `install/omarchy-base.packages`
-and `install/omarchy-other.packages`; the ISO builder also reads them when
-constructing its offline mirror.
+and `install/omarchy-other.packages`, plus `install/omarchy-child.packages`
+for what a child install adds on top; the ISO builder also reads them when
+constructing its offline mirror. Child-only webapp launchers live in
+`install/omarchy-child-applications/` and are copied by
+`omarchy-refresh-applications` only when `omarchy-profile-child` is true, so
+they never land in `/etc/skel` for a default install.
 
 ## Explicit resync (`omarchy-reinstall-configs`)
 
@@ -354,6 +372,9 @@ return to the packaged default.
 | Per-user file that's static but lives outside `~/.config` | `default/`, then add `install -Dm644 ... $pkgdir/etc/skel/...` in `omarchy-settings` PKGBUILD |
 | Runtime tweak that needs `$HOME` or live system state | extend `omarchy-provision-user`, or add a per-user leaf under `install/user/` and wire into `install/user/all.sh` |
 | One-time root-side setup step | `install/config/*.sh` or `install/hardware/*.sh`, wire into `install/config/all.sh` or `install/hardware/all.sh` |
+| Gate something on the install profile (kids mode) | `omarchy-profile-child`; the marker is `/etc/omarchy/profile`, written by `omarchy-apply-system --profile` |
+| A root daemon a child install turns on (e.g. screen time) | the daemon in `bin/`, its unit in `etc/systemd/system/` and its group/dirs in `etc/sysusers.d/` + `etc/tmpfiles.d/` (all ship to `/etc` via `omarchy-settings`), enabled from `install/config/*.sh` behind `omarchy-profile-child`; its own state under `/etc/omarchy-screen-time` and `/var/lib/omarchy-screen-time`, root-only |
+| Record a parent-approved plugin id (child installs) | `omarchy-plugin-approve`; the list is `/etc/omarchy/plugins-parent-approved` |
 | One-time fix for existing installs | `migrations/<unix-timestamp>.sh` |
 | Package-owned path something else may already write | Prefer a path nothing else writes, such as a vendor drop-in under `/usr/lib`. Otherwise the `--overwrite` entry in `bin/omarchy-update-system-pkgs` has to ship a release before the file |
 | User-facing `omarchy-*` command | `bin/omarchy-<group>-<verb>` — see `GROUP_DESCRIPTIONS` in `bin/omarchy` |

@@ -13,6 +13,9 @@ fail() {
   exit 1
 }
 
+source "$OMARCHY_PATH/install/helpers/plugin-parent-gate.sh"
+source "$OMARCHY_PATH/install/helpers/plugin-enable.sh"
+
 copy_plugin() {
   local source_dir="$1"
   local manifest="$2"
@@ -143,6 +146,7 @@ cleanup() {
 trap cleanup EXIT
 copy_plugin "$source_dir" "$source_manifest" "$stage"
 update_manifest "$stage" "$source_id" "$new_id" "$display_name"
+register_parent_approved_plugin "$new_id"
 mv "$stage" "$target_dir"
 stage=""
 
@@ -156,7 +160,7 @@ for (( attempt = 0; attempt < 40; attempt++ )); do
   sleep 0.05
 done
 (( discovered )) || fail "cloned plugin '$new_id' was not discovered"
-omarchy-plugin-enable "$new_id" >/dev/null
+omarchy_plugin_enable_core "$new_id"
 clone_complete=1
 omarchy-notification-send -g 󰐱 \
   "Editing Cloned Plugin" \

@@ -7,7 +7,7 @@ if lspci -nn | grep "106b:180[12]" >/dev/null; then
     linux-t2 \
     linux-t2-headers \
     apple-t2-audio-config \
-    apple-bcm-firmware \
+    apple-bcm-firmware-fetcher \
     t2fanrd
 
   # Enable T2 fan control

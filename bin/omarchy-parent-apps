@@ -1,0 +1,165 @@
+#!/bin/bash
+
+# omarchy:summary=Show or hide launchers on a child install
+# omarchy:args=[show|hide|list] [NAME]
+# omarchy:examples=sudo omarchy-parent apps show YouTube | omarchy parent apps hide YouTube | sudo omarchy-parent apps list
+# omarchy:requires-sudo=true
+
+# Parent overrides for omarchy-child-hidden-applications. show keeps a
+# launcher through omarchy-refresh-applications; hide adds one. The files
+# are root-owned under /etc/omarchy so they survive updates.
+
+set -euo pipefail
+
+OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+
+fail() {
+  echo "Error: $1" >&2
+  exit 1
+}
+
+source "$OMARCHY_PATH/install/helpers/parent-apps.sh"
+
+usage() {
+  cat <<USAGE
+Usage: omarchy-parent apps [show|hide|list] [NAME]
+
+show  Keep NAME in the launcher when applications are refreshed
+hide  Drop NAME from the launcher on refresh (and on this call)
+list  Print the parent show and hide overrides
+USAGE
+}
+
+require_child_install() {
+  omarchy-profile-child || fail "this is not a child install; omarchy-parent apps only applies to the kids mode profile"
+}
+
+parse_name() {
+  local raw="$1" name
+  if name=$(parent_apps_normalize "$raw"); then
+    printf '%s\n' "$name"
+    return 0
+  fi
+  echo "Error: '$raw' is not a launcher name (use the desktop name, like YouTube)" >&2
+  return 1
+}
+
+print_list() {
+  local name
+  echo "shown:"
+  if parent_apps_read "$PARENT_APPS_SHOW" | grep -q .; then
+    parent_apps_read "$PARENT_APPS_SHOW"
+  else
+    echo "(none)"
+  fi
+  echo "hidden:"
+  if parent_apps_read "$PARENT_APPS_HIDE" | grep -q .; then
+    parent_apps_read "$PARENT_APPS_HIDE"
+  else
+    echo "(none)"
+  fi
+}
+
+hint_if_youtube_blocked() {
+  local name="$1"
+  local sites="${OMARCHY_PARENT_SITES_FILE:-/etc/omarchy/parent-sites}"
+  [[ $name == "YouTube" ]] || return 0
+  [[ -f $sites ]] || return 0
+  parent_apps_read "$sites" | grep -qx youtube.com || return 0
+  echo "youtube.com is still blocked. sudo omarchy-parent sites allow youtube.com if the kid should open it in the browser."
+}
+
+refresh_kid_launchers() {
+  local user="${1:-}" home
+  [[ -n $user ]] || user="${SUDO_USER:-}"
+  [[ -n $user && $user != "root" ]] || return 0
+  getent passwd "$user" >/dev/null || return 0
+  home=$(getent passwd "$user" | cut -d: -f6)
+  [[ -n $home ]] || return 0
+  if command -v runuser >/dev/null; then
+    runuser -u "$user" -- env HOME="$home" OMARCHY_PATH="$OMARCHY_PATH" \
+      OMARCHY_PARENT_APPS_SHOW="$PARENT_APPS_SHOW" \
+      OMARCHY_PARENT_APPS_HIDE="$PARENT_APPS_HIDE" \
+      OMARCHY_PARENT_APPS_SHIPPED="$PARENT_APPS_SHIPPED" \
+      "$OMARCHY_PATH/bin/omarchy-refresh-applications"
+  else
+    HOME="$home" OMARCHY_PATH="$OMARCHY_PATH" \
+      OMARCHY_PARENT_APPS_SHOW="$PARENT_APPS_SHOW" \
+      OMARCHY_PARENT_APPS_HIDE="$PARENT_APPS_HIDE" \
+      OMARCHY_PARENT_APPS_SHIPPED="$PARENT_APPS_SHIPPED" \
+      "$OMARCHY_PATH/bin/omarchy-refresh-applications"
+  fi
+}
+
+case "${1:-list}" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
+  show|hide|list|"")
+    ;;
+  *)
+    echo "Unknown command: $1" >&2
+    usage >&2
+    exit 1
+    ;;
+esac
+
+if (( EUID != 0 )); then
+  status=0
+  sudo env OMARCHY_PATH="$OMARCHY_PATH" \
+    OMARCHY_PARENT_APPS_SHOW="${OMARCHY_PARENT_APPS_SHOW:-}" \
+    OMARCHY_PARENT_APPS_HIDE="${OMARCHY_PARENT_APPS_HIDE:-}" \
+    OMARCHY_PARENT_APPS_SHIPPED="${OMARCHY_PARENT_APPS_SHIPPED:-}" \
+    OMARCHY_PARENT_SITES_FILE="${OMARCHY_PARENT_SITES_FILE:-}" \
+    "$0" "$@" || status=$?
+  sudo -k
+  exit "$status"
+fi
+
+require_child_install
+
+command="${1:-list}"
+shift || true
+user=""
+positional=()
+while (($#)); do
+  case "$1" in
+    --user)
+      user="${2:-}"
+      shift 2
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      positional+=("$1")
+      shift
+      ;;
+  esac
+done
+
+case "$command" in
+  list)
+    print_list
+    ;;
+  show)
+    (( ${#positional[@]} )) || fail "apps show needs a launcher name, like YouTube"
+    name=$(parse_name "${positional[0]}") || exit 1
+    parent_apps_add "$PARENT_APPS_SHOW" "$name"
+    parent_apps_remove "$PARENT_APPS_HIDE" "$name"
+    refresh_kid_launchers "$user"
+    echo "Shown: $name"
+    hint_if_youtube_blocked "$name"
+    ;;
+  hide)
+    (( ${#positional[@]} )) || fail "apps hide needs a launcher name, like YouTube"
+    name=$(parse_name "${positional[0]}") || exit 1
+    parent_apps_add "$PARENT_APPS_HIDE" "$name"
+    parent_apps_remove "$PARENT_APPS_SHOW" "$name"
+    refresh_kid_launchers "$user"
+    echo "Hidden: $name"
+    ;;
+esac

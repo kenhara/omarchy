@@ -1,0 +1,15 @@
+# Hostnames sinkholed when the parent blocks youtube.com (or youtu.be).
+# One name per line. www. is added automatically for names that do not already
+# start with it. Chromium-family URLBlocklist also gets *.domain for each.
+youtube.com
+m.youtube.com
+music.youtube.com
+youtu.be
+youtube-nocookie.com
+youtube.googleapis.com
+youtubei.googleapis.com
+googlevideo.com
+ytimg.com
+i.ytimg.com
+s.ytimg.com
+yt3.ggpht.com

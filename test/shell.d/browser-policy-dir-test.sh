@@ -279,7 +279,9 @@ dns_dir=$test_tmp/dns-managed
 mkdir -p "$dns_dir"
 as_root() { unprivileged_as_root "$@"; }
 browser_policy_install_dns "$dns_dir" || fail "dns policy writes into a writable policy directory"
-grep -F '"DnsOverHttpsMode": "off"' "$dns_dir/dns.json" >/dev/null || fail "dns policy turns DoH off"
+grep -F '"DnsOverHttpsMode": "secure"' "$dns_dir/dns.json" >/dev/null || fail "dns policy forces DoH"
+grep -F 'https://family.cloudflare-dns.com/dns-query{?dns}' "$dns_dir/dns.json" >/dev/null ||
+  fail "dns policy pins Chromium DoH to the family endpoint"
 mode=$(stat -c '%a' "$dns_dir/dns.json")
 [[ $mode == "644" ]] || fail "dns policy creates a root-mode policy file" "mode=$mode"
 pass "dns policy writes a 0644 dns.json"
@@ -318,16 +320,30 @@ fx_merge=$test_tmp/fx-merge
 mkdir -p "$fx_merge"
 cp "$ROOT/default/firefox/policies.json" "$fx_merge/policies.json"
 as_root() { unprivileged_as_root "$@"; }
-browser_policy_firefox_merge_doh "$fx_merge/policies.json" 1 || fail "Firefox DoH merge writes locked DNSOverHTTPS"
+browser_policy_firefox_merge_doh "$fx_merge/policies.json" families || fail "Firefox DoH merge writes locked DNSOverHTTPS"
 python3 - "$fx_merge/policies.json" <<'PY'
 import json, sys
 data = json.load(open(sys.argv[1]))
-assert data["policies"]["DNSOverHTTPS"] == {"Enabled": False, "Locked": True}
+assert data["policies"]["DNSOverHTTPS"] == {
+    "Enabled": True,
+    "ProviderURL": "https://family.cloudflare-dns.com/dns-query",
+    "Locked": True,
+    "Fallback": False,
+}
 prefs = data["policies"]["Preferences"]
 assert "network.trr.mode" not in prefs
 assert prefs["media.ffmpeg.vaapi.enabled"]["Value"] is True
 PY
-browser_policy_firefox_merge_doh "$fx_merge/policies.json" 0 || fail "Firefox DoH merge can clear the lock"
+browser_policy_install_dns "$dns_dir" security || fail "dns policy can pin the security endpoint"
+grep -F 'https://security.cloudflare-dns.com/dns-query{?dns}' "$dns_dir/dns.json" >/dev/null ||
+  fail "security mode pins Chromium DoH to the security endpoint"
+browser_policy_firefox_merge_doh "$fx_merge/policies.json" security || fail "Firefox DoH merge can pin security"
+python3 - "$fx_merge/policies.json" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+assert data["policies"]["DNSOverHTTPS"]["ProviderURL"] == "https://security.cloudflare-dns.com/dns-query"
+PY
+browser_policy_firefox_merge_doh "$fx_merge/policies.json" off || fail "Firefox DoH merge can clear the lock"
 python3 - "$fx_merge/policies.json" <<'PY'
 import json, sys
 data = json.load(open(sys.argv[1]))
@@ -346,20 +362,21 @@ cp "$ROOT/default/firefox/policies.json" "$apply_fail/firefox/policies.json"
 as_root() { unprivileged_as_root "$@"; }
 BROWSER_POLICY_MANAGED_DIRS=("$apply_fail/chrome")
 BROWSER_POLICY_FIREFOX_DIRS=("$apply_fail/firefox")
-if browser_policy_apply_doh_off; then
-  fail "apply_doh_off reports a Chromium write failure"
+if browser_policy_apply_doh families; then
+  fail "apply_doh reports a Chromium write failure"
 fi
 python3 - "$apply_fail/firefox/policies.json" <<'PY'
 import json, sys
 data = json.load(open(sys.argv[1]))
-assert data["policies"]["DNSOverHTTPS"] == {"Enabled": False, "Locked": True}
+assert data["policies"]["DNSOverHTTPS"]["ProviderURL"] == "https://family.cloudflare-dns.com/dns-query"
+assert data["policies"]["DNSOverHTTPS"]["Locked"] is True
 PY
 [[ ! -e $apply_fail/chrome/dns.json ]] || fail "a failed Chromium write left no dns.json"
-pass "apply_doh_off keeps going after the first browser-policy failure"
+pass "apply_doh keeps going after the first browser-policy failure"
 
 grep -F 'omarchy-parent-dns apply' "$ROOT/bin/omarchy-install-browser" >/dev/null ||
   fail "later browser installs re-apply family DNS through omarchy-parent-dns apply"
-if grep -E 'browser_policy_apply_doh_off \|\| true' "$ROOT/bin/omarchy-install-browser" >/dev/null; then
+if grep -E 'browser_policy_apply_doh(_off)? \|\| true' "$ROOT/bin/omarchy-install-browser" >/dev/null; then
   fail "omarchy-install-browser must not hide a DoH policy failure behind || true"
 fi
 pass "omarchy-install-browser reapplies family DNS on a locked child install"

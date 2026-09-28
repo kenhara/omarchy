@@ -3,3 +3,4 @@
 # question. The ISO builder also reads this file when constructing the offline
 # mirror.
 gcompris-qt
+nftables

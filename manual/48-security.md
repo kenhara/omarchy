@@ -22,7 +22,11 @@ Joining a new Wi-Fi network, or changing one, asks for the parent password as we
 
 Change the parent password under _Update > Password > Parent_, or with `sudo omarchy-parent password` in a terminal. That changes root's password, not the disk slot that goes with it: to rotate that as well, run _Update > Password > Drive Encryption_ and type the old parent password when it asks for the current one.
 
-Two things to know. `sudo` remembers a password for a few minutes in the terminal it was typed in, and system prompts remember an authorization for a similar spell, so close the terminal when you are done administering. And the split protects the running system, not the hardware: someone with a live USB and the kid's disk password can reset root's password from outside, so on a kid's laptop set a BIOS password and lock the boot order. A child install does not filter the web on its own; that is a separate layer.
+Two things to know. `sudo` remembers a password for a few minutes in the terminal it was typed in, and system prompts remember an authorization for a similar spell, so close the terminal when you are done administering. And the split protects the running system, not the hardware. Child installs disable Limine's boot-menu editor, so pressing E at the boot menu cannot add `init=/bin/bash` and reset the parent password from there; a BIOS/firmware password and a locked boot order are still needed against booting from USB.
+
+When you need to repair the machine from a live USB, reboot into firmware setup (F2, Del, or whichever key your machine uses), enter the supervisor password, re-enable USB or removable boot (or put USB first), save and exit, then boot the stick and chroot or repair. When you are done, go back into firmware, disable USB, DVD, and network boot again, and save. The machine is only open to a live USB while you are standing there.
+
+A child install does not filter the web on its own; that is a separate layer.
 
 Fingerprint unlock still works for the kid at the lock screen, but `sudo` and system prompts keep asking for the parent password, and FIDO2 setup is not offered because it only ever covered those two. Child installs also close the text consoles behind Ctrl+Alt+F2 through F6, so the lock screen is the only way back into a locked session; `sudo omarchy-parent tty on` reopens them.
 

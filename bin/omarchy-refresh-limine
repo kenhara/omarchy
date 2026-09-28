@@ -3,7 +3,10 @@
 # omarchy:summary=Overwrite the user config for the Limine bootloader and rebuild it.
 # omarchy:requires-sudo=true
 
+source "$OMARCHY_PATH/install/helpers/limine-boot-editor.sh"
+
 legacy_uki="/boot/EFI/Linux/$(cat /etc/machine-id)_linux.efi"
+limine_conf="${OMARCHY_LIMINE_CONF:-/boot/limine.conf}"
 
 if sudo test -f /boot/EFI/Linux/omarchy_linux.efi && sudo test -f "$legacy_uki"; then
   echo "Cleanup extra UKI"
@@ -11,9 +14,16 @@ if sudo test -f /boot/EFI/Linux/omarchy_linux.efi && sudo test -f "$legacy_uki";
 fi
 echo "Resetting limine config"
 
-sudo mv /boot/limine.conf /boot/limine.conf.bak
+sudo mv "$limine_conf" "$limine_conf.bak"
 
-sudo cp "$OMARCHY_PATH/default/limine/limine.conf" /boot/limine.conf
+sudo cp "$OMARCHY_PATH/default/limine/limine.conf" "$limine_conf"
 
 sudo limine-update
 sudo limine-snapper-sync
+
+# The copy above starts from the regular template, which leaves the editor on.
+# Re-apply after limine-update and limine-snapper-sync so a child refresh cannot
+# restore E. The post.d hook apply installs covers other limine-entry-tool runs.
+if omarchy-profile-child; then
+  set_limine_boot_editor no
+fi

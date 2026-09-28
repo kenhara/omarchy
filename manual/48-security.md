@@ -26,6 +26,8 @@ Two things to know. `sudo` remembers a password for a few minutes in the termina
 
 Fingerprint unlock still works for the kid at the lock screen, but `sudo` and system prompts keep asking for the parent password, and FIDO2 setup is not offered because it only ever covered those two. Child installs also close the text consoles behind Ctrl+Alt+F2 through F6, so the lock screen is the only way back into a locked session; `sudo omarchy-parent tty on` reopens them.
 
+Hidden launchers (WhatsApp, Discord, and the rest in the child hidden-applications list) are deleted on every `omarchy-refresh-applications`. Re-adding a `.desktop` file named exactly `YouTube` does not stick. `sudo omarchy-parent apps show YouTube` records a root-owned override in `/etc/omarchy/parent-apps-show` so the launcher survives refresh and updates; `sudo omarchy-parent apps hide YouTube` puts the hide back. If youtube.com is blocked, showing YouTube prints a hint to allow the site.
+
 ## Passing on a machine you've already used
 
 If you're handing your machine over to someone else, you don't have to reinstall it. Run _Setup > Reset Computer_ in the Omarchy menu, type `reset` to confirm, and reboot. That wipes every user account and everything in `/home`, throws away all the packages and system changes you made since installation, and clears the machine's identity — network connections, host keys, and all. What comes back up is the setup wizard from the first boot, ready for its new owner to enter their own name, password, and encryption password.

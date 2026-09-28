@@ -72,6 +72,7 @@ while IFS= read -r name || [[ -n $name ]]; do
   hidden_count=$((hidden_count + 1))
 done <"$hidden"
 (( hidden_count > 0 )) || fail "install/omarchy-child-hidden-applications lists launchers to drop"
-grep -Fq 'omarchy-child-hidden-applications' "$ROOT/bin/omarchy-refresh-applications" ||
+grep -Fq 'omarchy-child-hidden-applications' "$ROOT/bin/omarchy-refresh-applications" \
+  || grep -Fq 'omarchy-child-hidden-applications' "$ROOT/install/helpers/parent-apps.sh" ||
   fail "omarchy-refresh-applications reads the hidden launcher list"
 pass "the child hidden-launcher list names shipped desktop files"

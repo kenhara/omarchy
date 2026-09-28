@@ -47,6 +47,8 @@ fi
 grep -Fq '# youtube.com' "$template" || fail "the template comments youtube.com as a blocklist example"
 grep -Fq '# tiktok.com' "$template" || fail "the template comments tiktok.com as a blocklist example"
 grep -Fq '# mode: allowlist' "$template" || fail "the template comments allowlist mode"
+grep -Fq 'Allowlist only covers Chromium-family / Firefox / Zen' "$template" ||
+  fail "the template explains allowlist limits above the allowlist example"
 grep -Fq '# khanacademy.org' "$template" || fail "the template comments khanacademy.org as an allowlist example"
 grep -Fq '# scratch.mit.edu' "$template" || fail "the template comments scratch.mit.edu as an allowlist example"
 grep -Fq '# wikipedia.org' "$template" || fail "the template comments wikipedia.org as an allowlist example"

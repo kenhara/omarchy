@@ -166,3 +166,122 @@ browser_policy_setup_firefox_distribution() {
   browser_policy_purge_dir "$distribution_dir"
   browser_policy_install_firefox_policies "$distribution_dir" "$policies"
 }
+
+# Chromium-family managed dirs accept multiple JSON files; dns.json sits
+# beside color.json and turns off the browser's own DNS-over-HTTPS so
+# lookups go through the system resolver (family DNS on a child install).
+# Write through as_root the same way Firefox policies.json is installed:
+# stage a temp file, then `install -T` so a planted symlink is replaced
+# rather than followed.
+browser_policy_install_dns() {
+  local policy_dir=$1
+  local dest=$policy_dir/dns.json
+  local tmp
+
+  [[ -d $policy_dir && ! -L $policy_dir ]] || return 0
+
+  tmp=$(mktemp) || return 1
+  printf '{"DnsOverHttpsMode": "off"}\n' >"$tmp"
+
+  if [[ -L $dest || -d $dest ]]; then
+    if ! as_root rm -rf -- "$dest"; then
+      rm -f "$tmp"
+      return 1
+    fi
+  fi
+
+  if as_root install -m 0644 -o root -g root -T "$tmp" "$dest"; then
+    rm -f "$tmp"
+    return 0
+  fi
+
+  rm -f "$tmp"
+  return 1
+}
+
+browser_policy_remove_dns() {
+  local policy_dir=$1
+  local dest=$policy_dir/dns.json
+
+  [[ -e $dest || -L $dest ]] || return 0
+  as_root rm -rf -- "$dest"
+}
+
+# Firefox has a single policies.json (no drop-ins). Merge locked
+# DNSOverHTTPS off into whatever is already there so VAAPI and the other
+# stock prefs survive. python3 is the JSON writer: bash cannot merge
+# objects without breaking a parent-edited file.
+browser_policy_firefox_merge_doh() {
+  local file=$1
+  local enable=$2
+  local tmp
+
+  [[ -f $file && ! -L $file ]] || return 0
+
+  tmp=$(mktemp) || return 1
+  if ! python3 - "$file" "$enable" "$tmp" <<'PY'
+import json
+import sys
+
+src, enable, dest = sys.argv[1], sys.argv[2] == "1", sys.argv[3]
+try:
+    with open(src, encoding="utf-8") as fh:
+        data = json.load(fh)
+except json.JSONDecodeError:
+    sys.exit(1)
+if not isinstance(data, dict):
+    sys.exit(1)
+policies = data.setdefault("policies", {})
+if not isinstance(policies, dict):
+    sys.exit(1)
+prefs = policies.get("Preferences")
+if prefs is not None and not isinstance(prefs, dict):
+    sys.exit(1)
+if enable:
+    policies["DNSOverHTTPS"] = {"Enabled": False, "Locked": True}
+else:
+    policies.pop("DNSOverHTTPS", None)
+if isinstance(prefs, dict):
+    prefs.pop("network.trr.mode", None)
+    prefs.pop("network.trr.uri", None)
+    if not prefs:
+        policies.pop("Preferences", None)
+with open(dest, "w", encoding="utf-8") as fh:
+    json.dump(data, fh, indent=2)
+    fh.write("\n")
+PY
+  then
+    rm -f "$tmp"
+    return 1
+  fi
+  if as_root install -m 644 -o root -g root -T "$tmp" "$file"; then
+    rm -f "$tmp"
+    return 0
+  fi
+  rm -f "$tmp"
+  return 1
+}
+
+browser_policy_apply_doh_off() {
+  local dir status=0
+  for dir in "${BROWSER_POLICY_MANAGED_DIRS[@]}"; do
+    [[ -d $dir && ! -L $dir ]] || continue
+    browser_policy_install_dns "$dir" || status=1
+  done
+  for dir in "${BROWSER_POLICY_FIREFOX_DIRS[@]}"; do
+    browser_policy_firefox_merge_doh "$dir/policies.json" 1 || status=1
+  done
+  return "$status"
+}
+
+browser_policy_clear_doh() {
+  local dir status=0
+  for dir in "${BROWSER_POLICY_MANAGED_DIRS[@]}"; do
+    [[ -e $dir/dns.json || -L $dir/dns.json ]] || continue
+    browser_policy_remove_dns "$dir" || status=1
+  done
+  for dir in "${BROWSER_POLICY_FIREFOX_DIRS[@]}"; do
+    browser_policy_firefox_merge_doh "$dir/policies.json" 0 || status=1
+  done
+  return "$status"
+}

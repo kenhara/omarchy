@@ -310,7 +310,8 @@ the legacy finalization marker from `~/.local/state/omarchy/` into `done/`.
 finalization. It sources:
 
 - `install/config/all.sh` — theme links, lockout limits, lockscreen PAM,
-  the child install's parental posture (`omarchy-parent apply`),
+  the child install's parental posture (`omarchy-parent apply`), family DNS
+  (`omarchy-parent-dns on` on child installs),
   powerprofilesctl shebang fix, SSH command path and keepalive, docker setup,
   Snapper retention, locate index tuning, service enablement, firewall.
 - `install/hardware/all.sh` via `omarchy-apply-hardware` — vendor- and

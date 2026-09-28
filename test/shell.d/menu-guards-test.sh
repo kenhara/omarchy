@@ -78,6 +78,24 @@ assertDeepEqual(
   [],
   'guard readers cover every command the shipped menu reads from more than one row'
 )
+assert(
+  menu.guardReaders.includes('omarchy-parent-dns locked'),
+  'guard readers capture omarchy-parent-dns locked once for every DNS row'
+)
+const lockSlot = `\${__omarchy_read_${menu.guardReaders.indexOf('omarchy-parent-dns locked')}}`
+const dnsGuards = menu.guardScript({
+  picker: { id: 'picker', when: '[[ "$(omarchy-parent-dns locked)" != yes ]]' },
+  locked: { id: 'locked', when: '[[ "$(omarchy-parent-dns locked)" == yes ]]' }
+})
+assertEqual(
+  (dnsGuards.match(/^__omarchy_read_\d+=\$\(omarchy-parent-dns locked /gm) || []).length,
+  1,
+  'guard script reads omarchy-parent-dns locked once for the whole batch'
+)
+assert(
+  dnsGuards.includes(`[[ "${lockSlot}" != yes ]]`) && dnsGuards.includes(`[[ "${lockSlot}" == yes ]]`),
+  'guard script substitutes the captured lock answer into every DNS row'
+)
 JS
 
 prelude() {
